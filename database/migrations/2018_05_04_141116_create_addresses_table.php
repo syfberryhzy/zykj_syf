@@ -18,10 +18,8 @@ class CreateAddressesTable extends Migration
             $table->unsignedInteger('order_id');
             $table->string('consignee')->comment('收件人');
             $table->string('phone')->comment('收件电话');
-            $table->string('province')->comment('省');
-            $table->string('city')->comment('市区');
-            $table->string('district')->comment('县镇')->nullable();
-            $table->string('address')->comment('详细地址');
+            $table->string('areas')->comment('省市区');
+            $table->string('details')->comment('详细地址');
             $table->string('zipcode')->comment('邮编')->nullable();
             $table->tinyInteger('status')->comment('状态 0=普通，1=默认')->default(0);
             $table->timestamps();

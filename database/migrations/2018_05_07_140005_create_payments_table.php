@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreateUserCouponsTable extends Migration
+class CreatePaymentsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,12 +13,12 @@ class CreateUserCouponsTable extends Migration
      */
     public function up()
     {
-        Schema::create('user_coupons', function (Blueprint $table) {
+        Schema::create('payments', function (Blueprint $table) {
             $table->increments('id');
             $table->unsignedInteger('user_id');
-            $table->unsignedInteger('coupon_id');
-            $table->Integer('order_id')->comment('使用订单ID')->nullable();
-            $table->tinyInteger('status')->comment('状态 0=未使用，1=已使用，2=已失效')->default(0);
+            $table->decimal('paiedtotal', 10, 2)->comment('订单已付金额')->default('0.00');
+            $table->tinyInteger('type')->comment('付款方式 0=微信支付，1=M币支付')->default(0);
+            $table->tinyInteger('status')->comment('付款状态 1=已支付')->default(1);
             $table->timestamps();
         });
     }
@@ -30,6 +30,6 @@ class CreateUserCouponsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('user_coupons');
+        Schema::dropIfExists('payments');
     }
 }

@@ -12,15 +12,14 @@ class UsersTableSeeder extends Seeder
      */
     public function run()
     {
-      $users = factory(User::class)->times(20)->make();
-       User::insert($users->makeVisible(['password', 'remember_token'])->toArray());
+      $users = factory(User::class)->times(20)->create();
        $user = User::find(1);
-       $user->name = str_random(10);
+       $user->username = str_random(10);
+       $user->nickname = str_random(10);
        $user->avatar = 'http://www.gravatar.com/avatar';
-       $user->email = 'aufree@yousails.com';
-       $user->password = bcrypt('password');
        $user->openid = str_random(10);
        $user->phone = '18256084531';
+       $user->status = rand(0,2);
        $user->save();
     }
 }

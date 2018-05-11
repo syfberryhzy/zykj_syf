@@ -24,7 +24,7 @@ class CreateProductsTable extends Migration
             $table->decimal('share_price', 10, 2)->comment('分享赚')->default('0.00');
             $table->Integer('sale_num')->comment('销量')->default(0);
             $table->string('description')->comment('简述');
-            $table->text('conent')->comment('商品详情');
+            $table->text('contact')->comment('商品详情');
             $table->tinyInteger('type')->comment('商品版块类型 0=普通商品, 1=今日推荐,2=独家定制,3=限时秒杀,4=M币专区')->default(0);
             // $table->decimal('m_price', 2)->comment('M币价值')->default('0.00');
             $table->tinyInteger('status')->comment('状态 0=下架,1=在售')->default(0);

@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreateUserCouponsTable extends Migration
+class CreateSharesTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,12 +13,11 @@ class CreateUserCouponsTable extends Migration
      */
     public function up()
     {
-        Schema::create('user_coupons', function (Blueprint $table) {
+        Schema::create('shares', function (Blueprint $table) {
             $table->increments('id');
             $table->unsignedInteger('user_id');
-            $table->unsignedInteger('coupon_id');
-            $table->Integer('order_id')->comment('使用订单ID')->nullable();
-            $table->tinyInteger('status')->comment('状态 0=未使用，1=已使用，2=已失效')->default(0);
+            $table->unsignedInteger('order_id');
+            $table->string('order_items')->comment('订单详细id, 以逗号","隔开');
             $table->timestamps();
         });
     }
@@ -30,6 +29,6 @@ class CreateUserCouponsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('user_coupons');
+        Schema::dropIfExists('shares');
     }
 }

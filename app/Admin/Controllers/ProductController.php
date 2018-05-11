@@ -11,6 +11,7 @@ use Encore\Admin\Facades\Admin;
 use Encore\Admin\Layout\Content;
 use App\Http\Controllers\Controller;
 use Encore\Admin\Controllers\ModelForm;
+use Encore\Admin\Widgets\Table;
 
 class ProductController extends Controller
 {
@@ -95,15 +96,39 @@ class ProductController extends Controller
                     $info = "<span class='label label-info'>M币专区</span>";
                     break;
                   default:
-                    $info = "<span class='label'>普通商品</span>";
+                    $info = "<span class='label label-warning'>普通商品</span>";
                     break;
                 }
                 return $info;
             });
-            $grid->images('图片')->image('', 100, 100);
-            $grid->diff_price('会员差价')->sortable();
+            $grid->images('图片')->display(function ($images) {
+              return $images[0];
+            })->image('', 100, 100);
             $grid->share_price('分享赚')->sortable();
+
+            $grid->column('库存')->display(function () {
+              return collect($this->items)->sum('quantity');
+            })->sortable();
             $grid->sale_num('销量')->sortable();
+            $grid->column('规格参数')->expand(function () {
+                $items = $this->items->toArray();
+                $headers = ['ID', '商品规格', '商品单价', '会员价', '商品库存', '状态', '操作'];
+                $title = ['id', 'norm', 'unit_price', 'vip_price','quantity',  'status', 'operate'];
+                $datas = array_map(function ($item) use ($title) {
+                    $status = $item['status'];
+                    $item['vip_price'] =   number_format($item['unit_price'] - $this->diff_price, 2);
+                    $item['quantity'] = $item['quantity'];
+                    $item['status'] = $status == 1 ? '显示' : '隐藏';
+                    $item['operate'] = $status == 1 ? '隐藏' : '显示';
+                    return array_only($item, $title);
+                }, $items);
+                return new Table($headers, $datas);
+            }, '查看详情');
+            $states = [
+              'on'  => ['value' => 1, 'text' => '上架', 'color' => 'primary'],
+              'off' => ['value' => 0, 'text' => '下架', 'color' => 'danger'],
+            ];
+            $grid->status('上架？')->switch($states);
             // $grid->created_at();
             // $grid->updated_at();
         });
@@ -131,30 +156,39 @@ class ProductController extends Controller
               $form->currency('diff_price', '会员差价')->symbol('￥');
               $form->currency('share_price', '分享赚')->symbol('￥');
               $form->number('sale_num', '商品销量')->default(0);
-              // $states = [
-              //   'on'  => ['value' => 1, 'text' => '上线', 'color' => 'primary'],
-              //   'off' => ['value' => 0, 'text' => '下架', 'color' => 'default'],
-              // ];
-              // $form->switch('status', '状态')->states($states)->default(1);
 
             })->tab('商品详情', function ($form) {
                $form->multipleImage('images', '商品图片')->removable();
                $form->textarea('description', '商品简述')->rows(3);
-               $form->editor('content', '商品详情');
+               $form->editor('contact', '商品详情');
+               $states = [
+                   'on'  => ['value' => 1, 'text' => '上架', 'color' => 'primary'],
+                   'off' => ['value' => 0, 'text' => '下架', 'color' => 'danger'],
+               ];
+               $form->switch('status', '上架？')->states($states)->default(1);
                $form->display('created_at', '创建时间');
                $form->display('updated_at', '编辑时间');
              })->tab('规格参数', function ($form) {
 
-               // $form->html('', $label = '');
                $form->hasMany('items', '', function(Form\NestedForm $form) {
                    $form->text('norm', '规格')->setWidth(2, 2);
-                   // 12等分，6就是50% enen
                    $form->currency('unit_price', '单价')->symbol('￥');
                    $form->number('quantity', '库存')->rules('regex:/^[0-9]*$/', [
                        'regex' => '库存必须为正整数',
                    ])->default(0);
+                   $states = [
+                       'on'  => ['value' => 1, 'text' => '上架', 'color' => 'primary'],
+                       'off' => ['value' => 0, 'text' => '下架', 'color' => 'danger'],
+                   ];
+                   $form->switch('status', '状态')->states($states)->default(1);
                    $form->divide();
                });
+             });
+             $form->saved(function (Form $form) {
+                $info = Product::find($form->model()->id);
+                $items = $info->items;
+                $info->pre_price = collect($items)->min('unit_price');
+                $info->save();
              });
         });
     }
