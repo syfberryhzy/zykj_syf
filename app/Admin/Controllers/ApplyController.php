@@ -3,6 +3,7 @@
 namespace App\Admin\Controllers;
 
 use App\Models\Apply;
+use App\Models\User;
 
 use Encore\Admin\Form;
 use Encore\Admin\Grid;
@@ -10,6 +11,8 @@ use Encore\Admin\Facades\Admin;
 use Encore\Admin\Layout\Content;
 use App\Http\Controllers\Controller;
 use Encore\Admin\Controllers\ModelForm;
+use App\Admin\Extensions\Tools\ApplyTool;
+use Illuminate\Http\Request;
 
 class ApplyController extends Controller
 {
@@ -74,7 +77,9 @@ class ApplyController extends Controller
         return Admin::grid(Apply::class, function (Grid $grid) {
             $grid->id('ID')->sortable();
             $grid->username('申请人');
-            $grid->column('parents.username','推荐人');
+            $grid->column('推荐人')->display(function() {
+              return $this->parent_id == 0 ? '平台推荐' : $this->parents->username;
+            });
             $grid->phone('联系电话');
             $grid->wechat('微信号');
             $grid->status('审核状态')->display(function ($status) {
@@ -94,15 +99,23 @@ class ApplyController extends Controller
                 }
                 return $info;
             })->sortable();
-            // $grid->username('申请人')->sortable()->display(function () {
-            //   return '<a href=""></a>';
-            // });
+
 
             $grid->created_at('申请时间');
             // $grid->updated_at('审核时间');
             $grid->disableCreateButton();
             $grid->disableExport();
             $grid->disableRowSelector();
+            $grid->actions(function ($actions) {
+              $actions->disableDelete();
+              $actions->disableEdit();
+
+              if ($actions->row->status == 0) {
+                // 添加操作
+                $actions->append(new ApplyTool($actions->getKey(), 1));
+                $actions->append(new ApplyTool($actions->getKey(), 2));
+              }
+            });
             $grid->filter(function ($filter) {
               $filter->disableIdFilter();
               $filter->like('username', '申请人');
@@ -134,5 +147,20 @@ class ApplyController extends Controller
             $form->display('created_at', '申请时间');
             $form->display('updated_at', '审核时间');
         });
+    }
+
+    public function operate(Apply $apply, Request $request)
+    {
+        if ($request->action) {
+          $apply->status = $request->action;
+          if ($apply->save()) {
+            $user = User::find($apply->user_id);
+            $user->status = $request->action == 1 ? 2 : 0;
+            $user->save();
+            return response()->json(['message' => '审核成功！', 'status' => 1], 201);
+          }
+          return response()->json(['message' => '审核失败!', 'status' => 0], 201);
+        }
+        return response()->json(['message' => '错误操作!', 'status' => 0], 201);
     }
 }

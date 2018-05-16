@@ -8,6 +8,8 @@ use App\Models\Coupon;
 
 class UserCoupon extends Model
 {
+    protected $fillable = ['user_id', 'coupon_id', 'status'];
+
     public function users()
     {
       return $this->belongsTo(User::class, 'user_id');

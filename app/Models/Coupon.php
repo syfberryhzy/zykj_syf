@@ -8,16 +8,19 @@ use App\Models\UserCoupon;
 class Coupon extends Model
 {
     protected $timestramp = false;
-    protected $guarded = [];
+
+
+    protected $hidden = [];
+
     public function items()
     {
       return $this->hasMany(UserCoupon::class);
     }
 
-    public function setEndAtAttribute()
-    {
-        return $this->attributes['end_at'] = date('Y-m-d H:i:s');
-    }
+    // public function setEndAtAttribute()
+    // {
+    //     return $this->attributes['end_at'] = date('Y-m-d H:i:s');
+    // }
 
 
         /**
@@ -29,4 +32,6 @@ class Coupon extends Model
         {
             static::bootTraits();
         }
+
+
 }

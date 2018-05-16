@@ -7,6 +7,8 @@ use App\Models\User;
 
 class Apply extends Model
 {
+    protected $fillable = ['user_id', 'parent_id', 'username', 'phone', 'wechat', 'areas', 'details'];
+
     public function parents()
     {
       return $this->hasMany(User::class, 'parent_id');

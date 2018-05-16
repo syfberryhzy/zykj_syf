@@ -22,6 +22,7 @@ Route::group([
 
     $router->resource('base/users', UserController::class);
     $router->resource('member/applies', ApplyController::class);
+    $router->post('member/applies/operate/{apply}', 'ApplyController@operate');
     $router->resource('member/recommends', RecommendController::class);
     $router->resource('member/integrals', IntegralController::class);
     $router->resource('member/mcoins', McoinController::class);

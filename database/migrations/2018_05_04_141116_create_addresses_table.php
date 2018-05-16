@@ -15,12 +15,13 @@ class CreateAddressesTable extends Migration
     {
         Schema::create('addresses', function (Blueprint $table) {
             $table->increments('id');
-            $table->unsignedInteger('order_id');
+            $table->unsignedInteger('user_id');
             $table->string('consignee')->comment('收件人');
             $table->string('phone')->comment('收件电话');
             $table->string('areas')->comment('省市区');
             $table->string('details')->comment('详细地址');
             $table->string('zipcode')->comment('邮编')->nullable();
+            $table->tinyInteger('gender')->comment('性别 1=先生，2=女士')->default(1);
             $table->tinyInteger('status')->comment('状态 0=普通，1=默认')->default(0);
             $table->timestamps();
         });

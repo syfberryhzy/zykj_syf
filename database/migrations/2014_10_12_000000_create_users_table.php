@@ -15,11 +15,13 @@ class CreateUsersTable extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
-            $table->string('username')->default('游客');
-            $table->string('nickname')->comment('微信昵称');
+            $table->string('username')->default('游客')->nullable();
+            $table->string('nickname')->comment('微信昵称')->nullable();
+            $table->tinyInteger('gender', 4)->comment('用户性别 1=男 2=女')->default(1);
             $table->string('avatar')->comment('头像')->default('http://www.gravatar.com/avatar');
             $table->string('phone')->comment('电话')->nullable();
-            $table->string('openid')->comment('微信授权');
+            $table->string('weixin_openid')->comment('微信授权')->unique();
+            $table->string('weixin_session_key')->nullable()->after('weixin_openid');
             $table->decimal('spend_total', 10, 2)->comment('个人总消费')->default('0.00');
             $table->decimal('spend_current', 10, 2)->comment('当月消费')->default('0.00');
             $table->decimal('victory_total', 10, 2)->comment('个人总业绩')->default('0.00');
