@@ -2,12 +2,22 @@
 
 namespace App\Api\Controllers;
 
+use Auth;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Api\Requests\WeappAuthorizationRequest;
+use App\Repositories\AgentRepositoryEloquent;
 
 class AuthorizationsController extends Controller
 {
+    public $agent;
+
+    public function __construct(AgentRepositoryEloquent $reponsitory)
+    {
+        $this->agent = $reponsitory;
+
+    }
+
     public function weappStore(WeappAuthorizationRequest $request)
     {
         $code = $request->code;
@@ -56,9 +66,11 @@ class AuthorizationsController extends Controller
           'nickname' => $request->name,
           'avatar' => $request->avatarUrl,
           'gender' => $request->gender,
+          'parent_id' => $request->parent_id ?? 0,
         ]);
-
-      return $this->response->array($user)->setStatusCode(201);
+        # recommend 推荐记录
+        $this->agent->addVister($user);
+        return response()->json(['status' => 'success', 'code' => '201', 'message' => '注册成功']);
     }
 
     /**
@@ -69,6 +81,17 @@ class AuthorizationsController extends Controller
         $token = \Auth::guard('api')->refresh();
         return $this->respondWithToken($token)->setStatusCode(201);
     }
+
+    /**
+    * 获取用户信息
+    */
+    public function get_user_info(Request $request)
+    {
+        $user = auth()->user();
+        $rank = $this->agent->verifyIdentidy($request);  
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $user]);
+    }
+
 
     /**
     * 登出

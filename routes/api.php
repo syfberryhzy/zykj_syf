@@ -56,11 +56,12 @@ $api->version('v1', [//默认
     # 注册、退出
     $api->put('/weapp/register', 'AuthorizationsController@register');
     $api->delete('/weapp/logout', 'AuthorizationsController@destroy');
+    $api->get('/user', 'AuthorizationsController@get_user_info');
     # 优惠券
     $api->resource('/coupons', 'UserCouponsController');
     $api->post('/receive/{coupon}', 'UserCouponsController@receive');
     # 个人中心
-    $api->get('/user', 'UsersController@me')->name('api.user.info');
+    $api->get('/user', 'AuthorizationsController@get_user_info');
     # 收货地址
     $api->resource('addresses', 'AddressesController');
     $api->post('addresses/{address}/default', 'AddressesController@setDefault');
@@ -70,9 +71,15 @@ $api->version('v1', [//默认
     $api->put('carts/{item}', 'CartsController@update');
     $api->delete('carts', 'CartsController@destroy');
 
+    $api->resource('orders', 'OrdersController');
+    $api->resource('wechat', 'WechatController');
+    $api->post('wechat/sure', 'WechatController@orderSure');
+    $api->post('wechat/pay/{order}', 'WechatController@pay_order');
     #代理
     $api->resource('agents', 'AgentsController');
+    $api->resource('agents', 'AgentsController');
     $api->post('agents/getcode', 'AgentsController@get_qrcode');
+    $api->post('withward', 'AgentsController@withward');
   });
 
 

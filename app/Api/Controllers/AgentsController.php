@@ -6,9 +6,19 @@ use App\Models\User;
 use App\Models\Apply;
 use Illuminate\Http\Request;
 use App\Api\Requests\AgentRequest;
+use App\Repositories\AgentRepositoryEloquent;
+use App\Repositories\ExchangeRepositoryEloquent;
 
 class AgentsController extends Controller
 {
+    public $agent;
+    public $exchange;
+
+    public function __construct(AgentRepositoryEloquent $reponsitory, ExchangeRepositoryEloquent $exchangeRep)
+    {
+        $this->agent = $reponsitory;
+        $this->exchange = $exchangeRep;
+    }
     /**
      * 申请代理
      */
@@ -18,16 +28,20 @@ class AgentsController extends Controller
         if ($user->status != 0) {
           return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请勿重复申请']);
         }
+        $parent_id = $user->parent_id == 0 ? 1 : $user->parent_id;
         Apply::create([
           'user_id' => $user->id,
-          'parent_id' => $user->parent_id ?? 0,
+          'parent_id' => $parent_id,
           'username' => $request->name,
           'phone' => $request->phone,
           'wechat' => $request->wechat,
           'areas' => $request->areas,
           'details' => $request->address
         ]);
-        $user->update(['status' => 1]);
+        $user->update(['status' => 1, 'parent_id' => $parent_id]);
+        if ($parent_id == 1) {
+          $this->agent->addVister($user);
+        }
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '申请提交成功']);
     }
 
@@ -38,40 +52,12 @@ class AgentsController extends Controller
     {
         //
     }
+    
     /**
     * 生成代理二维码
     */
     public function get_qrcode(Request $request) {
-        header('content-type:image/png');
-        //header('content-type:image/gif');格式自选，不同格式貌似加载速度略有不同，想加载更快可选择jpg
-        //header('content-type:image/jpg');
-        $uid = 6;
-        $access_token = $request->token;
-        $data = array();
-        // $data['scene'] = $request->scene;
-        $data['scene'] = '10086';
-        $data['page'] = "pages/index/index";
-        $url = "https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=" . $access_token;
-        $da = $this->get_http_array($url,$data);
-        //这里强调显示二维码可以直接写该访问路径，同时也可以使用curl保存到本地，详细用法可以加群或者加我扣扣
-    }
-
-    public function get_http_array($url,$post_data) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        // curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);   //没有这个会自动输出，不用print_r();也会在后面多个1
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-        $output = curl_exec($ch);
-        curl_close($ch);
-        $out = json_decode($output);
-        return $out;
-    }
-
-    public function show($id)
-    {
-        //
+        return $this->agent->getQrcode($request, auth()->user()->id);
     }
 
     /**
@@ -88,12 +74,22 @@ class AgentsController extends Controller
 
     /**
      * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function destroy($id)
     {
         //
+    }
+    /**
+    * 提现申请
+    */
+    public function withward(Request $request)
+    {
+        if (!$request->money) {
+          return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请输入提现金额']);
+        }
+        if ($this->exchange->withward($request->money)) {
+          return response()->json(['status' => 'success', 'code' => '201', 'message' => '提现申请已提交']);
+        }
+        return response()->json(['status' => 'fail', 'code' => '422', 'message' => '悟空，你又调皮']);
     }
 }

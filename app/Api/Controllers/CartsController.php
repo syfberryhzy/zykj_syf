@@ -6,9 +6,17 @@ use App\Models\Product;
 use App\Models\ProductItem;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Repositories\CartRepositoryEloquent;
 
 class CartsController extends Controller
 {
+    public $carts;
+
+    public function __construct(CartRepositoryEloquent $repository)
+    {
+        $this->carts = $repository;
+    }
+
     public function index()
     {
         $user = auth()->user();
@@ -16,8 +24,8 @@ class CartsController extends Controller
             tap($user)->update(['session_id' => \Session::getId()]);
         }
         request()->session()->setId($user->session_id);
-        \ShoppingCart::name('cart.user.' . $user->id);
-        return \ShoppingCart::all();
+        $datas = $this->carts->getCartsAll($user);
+        return $datas;
     }
 
     public function checkCart($item)
@@ -44,21 +52,7 @@ class CartsController extends Controller
         if ($user->session_id === null) {
             tap($user)->update(['session_id' => \Session::getId()]);
         }
-        request()->session()->setId($user->session_id);
-
-        \ShoppingCart::name('cart.user.' . $user->id);
-        $price = $user->status == 1 ? number_format($item->unit_price - $product->diff_price) : $item->unit_price;
-        $row = \ShoppingCart::add(
-            $item->id,
-            $product->title,
-            $request->qty ?? 1,
-            $price,
-            $options = [
-                'size' => $item->norm,
-                'product_id' => $product->id,
-                'image' => env('APP_URL_UPLOADS', ''). '/' . $product->images[0]
-            ]
-        );
+        $row = $this->carts->addCart($user, $item, $request);
 
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '添加成功', 'data' => $row->rawId()]);
     }
@@ -71,20 +65,12 @@ class CartsController extends Controller
      */
     public function update(ProductItem $item, Request $request)
     {
+        $user = auth()->user();
         $this->checkCart($item);
         if ($request->qty == 0) {
             return response()->json(['status' => 'fail', 'code' => '401', 'message' => '加购数量不符合']);
         }
-
-        $user = auth()->user();
-        request()->session()->setId($user->session_id);
-        \ShoppingCart::name('cart.user.' . $user->id);
-        $cart = \ShoppingCart::get($request->cart);
-        if ($item->quantity < $cart->qty + $request->qty) {
-            return response()->json(['status' => 'fail', 'code' => '401', 'message' => '该商品库存不足']);
-        }
-
-        \ShoppingCart::update($request->cart, $request->qty);
+        $this->carts->editCart($user, $item, $request);
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '添加成功', 'data' => $request->cart]);
     }
 
@@ -98,9 +84,8 @@ class CartsController extends Controller
     public function destroy(Request $request)
     {
         $user = auth()->user();
-        request()->session()->setId($user->session_id);
-        \ShoppingCart::name('cart.user.' . $user->id);
-        $request->cart ? \ShoppingCart::remove($request->cart) : \ShoppingCart::destroy();
+        $request->cart ? $this->carts->deleteCart($user, $request->cart) : $this->carts->destroyCart($user);
+
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '删除成功']);
     }
 }

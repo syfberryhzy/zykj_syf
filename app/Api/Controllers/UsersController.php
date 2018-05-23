@@ -10,18 +10,10 @@ use App\Transformers\UserTransformer;
 class UsersController extends Controller
 {
     /**
-    * 个人信息
+    * 首页
     */
-    public function me()
+    public function index()
     {
-        return $this->response->array($this->user());
-    }
-
-    /**
-    *
-    */
-    public function store(UserRequest $request)
-    {
-      //
+        
     }
 }

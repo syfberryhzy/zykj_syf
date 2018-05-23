@@ -7,11 +7,11 @@ use Prettus\Repository\Contracts\Transformable;
 use Prettus\Repository\Traits\TransformableTrait;
 
 /**
- * Class Cart.
+ * Class Agent.
  *
  * @package namespace App\Models;
  */
-class Cart extends Model implements Transformable
+class Agent extends Model implements Transformable
 {
     use TransformableTrait;
 
