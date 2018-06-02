@@ -2,6 +2,7 @@
 
 namespace App\Api\Controllers;
 
+use App\Models\User;
 use App\Models\Product;
 use App\Models\ProductItem;
 use Illuminate\Http\Request;
@@ -19,13 +20,17 @@ class CartsController extends Controller
 
     public function index()
     {
+      
         $user = auth()->user();
+        $user  = User::find(21);
         if ($user->session_id === null) {
             tap($user)->update(['session_id' => \Session::getId()]);
         }
+
         request()->session()->setId($user->session_id);
-        $datas = $this->carts->getCartsAll($user);
-        return $datas;
+        \ShoppingCart::name('cart.user.' . $user->id);
+        return \ShoppingCart::all();
+
     }
 
     public function checkCart($item)
@@ -49,12 +54,31 @@ class CartsController extends Controller
     {
         $this->checkCart($item);
         $user = auth()->user();
+        $user  = User::find(21);//这样可行？嗯
+
         if ($user->session_id === null) {
             tap($user)->update(['session_id' => \Session::getId()]);
         }
-        $row = $this->carts->addCart($user, $item, $request);
 
-        return response()->json(['status' => 'success', 'code' => '201', 'message' => '添加成功', 'data' => $row->rawId()]);
+        $product = $item->product;
+        request()->session()->setId($user->session_id);
+        \ShoppingCart::name('cart.user.' . $user->id);
+        $price = $user->status == 1 ? ($item->unit_price - $product->diff_price) : $item->unit_price;
+        $row = \ShoppingCart::add(
+            $item->id,
+            $product->title,
+            $request->qty ?? 1,
+            $price,
+            $options = [
+                'size' => $item->norm,
+                'product_id' => $product->id,
+                'image' => env('APP_URL_UPLOADS', ''). '/' . $product->images[0]
+            ]
+        );
+
+        $datas = \ShoppingCart::all();;//当时可以获取到
+
+        return response()->json(['status' => 'success', 'code' => '201', 'message' => '添加成功', 'data' => $row->rawId(), 'datas' => $datas]);
     }
 
     /**

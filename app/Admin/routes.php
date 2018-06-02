@@ -15,6 +15,7 @@ Route::group([
     $router->resource('site/banners', BannerController::class);
     $router->resource('site/news', NewsController::class);
     $router->resource('site/coupon', CouponController::class);
+    $router->post('site/coupon/operate/{coupon}', 'CouponController@operate');
     $router->resource('client/user_coupons', UserCouponController::class);
 
     $router->resource('mall/category', CategoryController::class);

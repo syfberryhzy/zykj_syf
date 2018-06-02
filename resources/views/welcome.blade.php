@@ -92,4 +92,45 @@
             </div>
         </div>
     </body>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script>
+    var token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOlwvXC9zeWYuNWxvdmVnb3UuY29tXC9hcGlcL3dlYXBwXC9yZWZyZXNoIiwiaWF0IjoxNTI3ODQ4NTg1LCJleHAiOjE1Mjc5MDQ2OTcsIm5iZiI6MTUyNzkwMTA5NywianRpIjoickxuV01vaUZQeEVwc0QzcSIsInN1YiI6MjIsInBydiI6IjIzYmQ1Yzg5NDlmNjAwYWRiMzllNzAxYzQwMDg3MmRiN2E1OTc2ZjcifQ.mF_BmoQ8xcQRpfZrXaZi1YhhP4oRJ7KAakvtNpFwfRM';
+
+          $.ajax({
+                url:'http://syf.test/api/carts/1',
+                type:'post',
+                header: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json',
+                },
+                xhrFields: {
+					withCredentials: true
+				},
+				crossDomain: true,
+                dataType:'json',
+                data:{},
+                success:function(data){
+                    alert(111);
+                    console.log(data);
+                }
+            });
+            $.ajax({
+                  url:'http://syf.test/api/carts',
+                  type:'get',
+                  header: {
+                      'Authorization': 'Bearer ' + token,
+                      'Content-Type': 'application/json',
+                  },
+                  xhrFields: {
+            withCredentials: true
+          },
+          crossDomain: true,
+                  dataType:'json',
+                  data:{},
+                  success:function(data){
+                      alert(111);
+                      console.log(data);
+                  }
+              });
+    </script>
 </html>

@@ -42,7 +42,7 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
     */
     public function get_user_rank($request)
     {
-      // 等级:A--会员=》会员， B--会员=》游客， C--游客=》游客
+      // 等级:A--会员=》会员， B--会员=》游客， C--游客=》游客 D = 无推荐 E=本人自己
         $user = auth()->user();
         $result = [];
         if ($user->parent_id != 0) {
@@ -50,10 +50,13 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
             $result['agent_id'] = $user->parent_id;
             return $result;
         }
-
+        if ($request->agent_id == $user->id ||  $request->sell_id == $user->id) {
+            $result['rank'] = 'D';
+            return $result;
+        }
         #带上级链接
-        if ($request->agentId) {
-            $agent = User::find($request->agentId);
+        if ($request->agent_id) {
+            $agent = User::find($request->agent_id);
             #绑定上级关系
             if ($agent && $agent->status == 2 && $user->status == 0) {
               $user->parent_id = $agent->id;
@@ -64,78 +67,28 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
             }
         }
         # 分享赚
-        if ($request->sellId && $request->orders) {
-          $agent = User::find($request->sellId);
-          $result['rank'] = 'C';
-          $result['agent_id'] = $agent->id;
-          $result['data'] = $request->orders;
-          return $result;
+        if ($request->sell_id && $request->orders) {
+            $agent = User::find($request->sell_id);
+            $result['rank'] = 'C';
+            $result['agent_id'] = $agent->id;
+            $result['order_id'] = $request->order_id;
+            return $result;
         }
 
         if(count($request->all()) == 0) {
-            return $result['rank'] = 'D';
+            $result['rank'] = 'D';
+            return $result;
         }
     }
 
     public function verifyIdentidy($request)
     {
         $data = $this->get_user_rank($request);
-
         Redis::set('user_rank', serialize($data));
+        return $data;
     }
 
-    public function get_share($orderId)
-    {
-        $user = auth()->user();
 
-        $rank = Redis::get('user_rank');
-        #diff_price
-        if ($rank == 'B') {
-          $old_order_id = $orderId;
-          $share_price = 'diff_price';
-          $parent_id = auth()->user()->parent_id;
-        }
-        #share_price
-        if ($rank == 'C') {
-          $old_order_id = Redis::get('tj_orders_'.auth()->user()->id);
-          $share_price = 'share_price';
-          $parent_id = Order::find($old_order_id)->user_id;
-        }
-        $this->award($parent_id, $orderId, $old_order_id, $share_price);
-    }
-
-    public function award($parent_id, $qty_id, $price_id, $share_price)
-    {
-      $qties = OrderItem::where('order_id', $new_orderId)->get()->pluck('num', 'id');
-      $prices = OrderItem::where('order_id', $orderId)->get()->pluck($share_price, 'id');
-      $user = User::find($parent_id);
-      // $total = $user->victory_total;//总业绩
-      $current = $user->victory_current;//当前业绩
-      foreach($qties as $key => $item) {
-        $price = $prices[$key] * $item;
-        $sum[] = $price;
-        $new = $victory_current + $price;
-        $data[] = [
-          'user_id' => $parent_id,
-          'total' => $current,
-          'amount' => $price,
-          'current' => $new,
-          'model' => 'order_item',
-          'uri' => $key,
-          'status' => Exchange::AWARD_STATUS,
-          'type' => Exchange::ADD_TYPE
-        ];
-        $current = $new;
-      }
-      $total = collect($sum)->sum();
-      #业绩奖励
-      $result = Exchange::create($data);
-      if ($result) {
-        $user->victory_current = $current;
-        $user->victory_total = $total;
-        $user->save();
-      }
-    }
     /**
     * 后台审核代理--同意
     */
@@ -266,7 +219,7 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
         // $data['width'] = $request->width;
 
         $data['scene'] = '10086';
-        $data['path'] = "pages/index?agentId=21";
+        $data['path'] = "pages/index?agent_id=21";
         // $data['line_color'] = '{"r":"220","g":"182","b":"99"}';
         $data = json_encode($data);
         $access = json_decode($this->get_access_token(),true);
@@ -277,6 +230,7 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
         $file_name = date('Y_m_d_') . uniqid() . '.png';
         $result = Storage::disk('qrcode')->put($file_name, $da);
         Recommend::where('user_id', $userId)->update(['qr_code' => $file_name]);
+        return $file_name;
     }
 
     public function get_http_array($url,$post_data) {

@@ -18,14 +18,17 @@ use App\Events\OrderEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use App\Repositories\CartRepositoryEloquent;
+use App\Repositories\ExchangeRepositoryEloquent;
 
 class WechatController extends Controller
 {
     public $carts;
+    public $exchanges;
 
-    public function __construct(CartRepositoryEloquent $repository)
+    public function __construct(CartRepositoryEloquent $repository, ExchangeRepositoryEloquent $exRepository)
     {
         $this->carts = $repository;
+        $this->exchanges = $exRepository;
     }
     /**
     * 有效的优惠券
@@ -174,49 +177,26 @@ class WechatController extends Controller
         }
     }
     /**
-    * 微信支付
+    * 微信支付成功
     */
     public function wxpay($order)
     {
         $user = auth()->user();
-        #现金付款
-        #积分增加？？
+
+        #M增加
         $integral = $order->total;
         $current = $user->integral_current + $integral;
-        $result = Exchange::create([
-          [
-              'user_id' => $user->id,
-              'total' => $order->total,
-              'amount' => $order->total,
-              'current' => '0',
-              'model' => 'order',
-              'uri' => $order->id,
-              'status' => Exchange::CASH_STATUS,
-              'type' => Exchange::REDUCE_TYPE
-            ],
-            [
-              'user_id' => $user->id,
-              'total' => $user->integral_current,
-              'amount' => $integral,
-              'current' => $current,
-              'model' => "order",
-              'uri' => $order->id,
-              'status' => Exchange::INTEGRAL_STATUS,
-              'type' => Exchange::ADD_TYPE
-            ]
-        ]);
+        #现金付款
+        $result = $this->exchanges->wx_pay($order);
         if ($result) {
           #订单--已付
           $order->status = 2; //已付
           $order->paiedtotal = $order->total;
           $order->save();
-          #用户--积分
-          $user->integral_total = $user->integral_total + $integral;
-          $user->integral_current = $current;
-          $user->save();
-
+          #代理--M币增加
+          $this->exchanges->m_add($order);
           #是否有上级推荐购买：
-          // $this->agent->get_share($order->id);
+          $this->exchanges->get_share($order->id);
           return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单支付成功']);
         }
         return response()->json(['status' => 'fail', 'code' => '422', 'message' => '订单支付失败']);

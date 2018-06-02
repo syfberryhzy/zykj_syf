@@ -17,6 +17,7 @@ class Product extends Model implements Transformable
 {
     use TransformableTrait;
 
+    
     /**
      * The attributes that are mass assignable.
      *

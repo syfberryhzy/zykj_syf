@@ -4,6 +4,7 @@ namespace App\Api\Controllers;
 
 use App\Models\User;
 use App\Models\Apply;
+use App\Models\Recommend;
 use Illuminate\Http\Request;
 use App\Api\Requests\AgentRequest;
 use App\Repositories\AgentRepositoryEloquent;
@@ -52,12 +53,21 @@ class AgentsController extends Controller
     {
         //
     }
-    
+
     /**
     * 生成代理二维码
     */
     public function get_qrcode(Request $request) {
-        return $this->agent->getQrcode($request, auth()->user()->id);
+
+        $res = Recommend::where('user_id', auth()->user()->id)->first();
+        if (!$res) {
+          return response()->json(['status' => 'fail', 'code' => '401', 'message' => '您还没有成为代理']);
+        }
+        if ($res->qr_code) {
+          return response()->json(['status' => 'success', 'code' => '201', 'data' => env('APP_URL_QRCODES').$res->qr_code]);
+        }
+        $code =  $this->agent->getQrcode($request, auth()->user()->id);
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => env('APP_URL_QRCODES').$code]);
     }
 
     /**

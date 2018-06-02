@@ -69,7 +69,7 @@ class CartRepositoryEloquent extends BaseRepository implements CartRepository
             'norm' => $cart->size,
             'num' => $cart->qty,
             'pre_price' => $cart->price,
-            'total_price' => number_format($cart->total, 2),
+            'total_price' => $cart->total,
           ]);
 
         }
@@ -87,7 +87,7 @@ class CartRepositoryEloquent extends BaseRepository implements CartRepository
         $product = $item->product;
         request()->session()->setId($user->session_id);
         \ShoppingCart::name('cart.user.' . $user->id);
-        $price = $user->status == 1 ? number_format($item->unit_price - $product->diff_price) : $item->unit_price;
+        $price = $user->status == 1 ? ($item->unit_price - $product->diff_price) : $item->unit_price;
         $row = \ShoppingCart::add(
             $item->id,
             $product->title,

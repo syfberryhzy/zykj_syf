@@ -23,7 +23,6 @@ class UserCouponsController extends Controller
     public function entrance(Coupon $coupon)
     {
         $this->checkCoupon($coupon);
-
         $coupon->start_at = Carbon::parse($coupon->start_at)->toDateString();
         $coupon->end_at = Carbon::parse($coupon->end_at)->toDateString();
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '福利多多,先到先得', 'data' => $coupon]);
@@ -70,7 +69,7 @@ class UserCouponsController extends Controller
         $user_id = auth()->user()->id;
         $result = UserCoupon::where(['user_id' => $user_id, 'coupon_id' => $coupon->id])->first();
         if ($result) {
-          return response()->json(['status' => 'fail', 'code' => '401', 'message' => '领取已打上限']);
+          return response()->json(['status' => 'fail', 'code' => '401', 'message' => '领取已达上限']);
         }
         #是否已领完
         if($coupon->quantum == $coupon->receive) {

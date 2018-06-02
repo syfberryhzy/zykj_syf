@@ -25,7 +25,7 @@ class AuthorizationsController extends Controller
         //根据 code 获取微信 openid 和 session_key
         $miniProgram = \EasyWeChat::miniProgram();
         $data = $miniProgram->auth->session($code);
-
+        // dd($code);
         // 如果结果错误，说明 code 已过期或不正确，返回 401 错误
         if (isset($data['errcode'])) {
             return $this->response->errorUnauthorized('code 不正确');
@@ -88,8 +88,8 @@ class AuthorizationsController extends Controller
     public function get_user_info(Request $request)
     {
         $user = auth()->user();
-        $rank = $this->agent->verifyIdentidy($request);  
-        return response()->json(['status' => 'success', 'code' => '201', 'data' => $user]);
+        $rank = $this->agent->verifyIdentidy($request);
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $user, 'rank' => $rank]);
     }
 
 

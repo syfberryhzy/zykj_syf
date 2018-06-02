@@ -32,7 +32,8 @@ $api->version('v1', [//默认
         // 'expires' => config('api.rate_limits.sign.expires'),
   // ]);
 
-
+  $api->get('carts', 'CartsController@index');
+  $api->post('carts/{item}', 'CartsController@store');//
 
 
   $api->get('shop/banners', 'IndexController@index');
@@ -43,7 +44,7 @@ $api->version('v1', [//默认
   $api->get('shop/category/{category}/{sort}/{limit?}', 'IndexController@productListByCate');
   $api->get('shop/search/{title}/{sort}/{limit?}', 'IndexController@productListByName');
 
-  $api->get('products/{product}', 'ProductsController@show');
+  // $api->get('products/{product}', 'ProductsController@show');
   $api->get('evaluates/{product}', 'ProductsController@evaluate');
 
   // 小程序登录
@@ -55,30 +56,39 @@ $api->version('v1', [//默认
   $api->group(['middleware' => 'api.auth'], function($api) {
     # 注册、退出
     $api->put('/weapp/register', 'AuthorizationsController@register');
+    $api->get('products/{product}', 'ProductsController@show');
     $api->delete('/weapp/logout', 'AuthorizationsController@destroy');
     $api->get('/user', 'AuthorizationsController@get_user_info');
+
+
     # 优惠券
     $api->resource('/coupons', 'UserCouponsController');
     $api->post('/receive/{coupon}', 'UserCouponsController@receive');
     # 个人中心
-    $api->get('/user', 'AuthorizationsController@get_user_info');
+    $api->get('/client', 'UsersController@client');
+    $api->get('/earn', 'UsersController@earn');
+    $api->get('/agent', 'UsersController@agent');
+    $api->get('/user/product/history', 'UsersController@history');
+    $api->get('/user/coupons', 'UsersController@coupons');
+
     # 收货地址
     $api->resource('addresses', 'AddressesController');
     $api->post('addresses/{address}/default', 'AddressesController@setDefault');
     # 购物车
-    $api->get('carts', 'CartsController@index');
-    $api->post('carts/{item}', 'CartsController@store');
+
     $api->put('carts/{item}', 'CartsController@update');
     $api->delete('carts', 'CartsController@destroy');
 
-    $api->resource('orders', 'OrdersController');
+    #订单
+    $api->resource('orders', 'OrdersController');//订单基础信息
+    $api->get('share/{order}', 'OrdersController@share');//分享赚
     $api->resource('wechat', 'WechatController');
-    $api->post('wechat/sure', 'WechatController@orderSure');
-    $api->post('wechat/pay/{order}', 'WechatController@pay_order');
+    $api->post('wechat/sure', 'WechatController@orderSure');//确认订单
+    $api->post('wechat/pay/{order}', 'WechatController@pay_order');//提交订单
     #代理
     $api->resource('agents', 'AgentsController');
     $api->resource('agents', 'AgentsController');
-    $api->post('agents/getcode', 'AgentsController@get_qrcode');
+    $api->post('agents/getcode', 'AgentsController@get_qrcode');//代理二维码
     $api->post('withward', 'AgentsController@withward');
   });
 
