@@ -151,6 +151,7 @@ return [
          * Package Service Providers...
          */
          Overtrue\LaravelShoppingCart\ServiceProvider::class,
+         SimpleSoftwareIO\QrCode\QrCodeServiceProvider::class,
 
         /*
          * Application Service Providers...
@@ -210,7 +211,7 @@ return [
         'Validator' => Illuminate\Support\Facades\Validator::class,
         'View' => Illuminate\Support\Facades\View::class,
         'ShoppingCart'      => Overtrue\LaravelShoppingCart\Facade::class,
-
+        'QrCode' => SimpleSoftwareIO\QrCode\Facades\QrCode::class,  
     ],
 
 ];

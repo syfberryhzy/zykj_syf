@@ -14,14 +14,11 @@ class ProductsController extends Controller
     */
     public function show(Product $product)
     {
-        $image = collect($product)->pull('images');
-        $images = collect($image)->map(function($item, $index) {
-          return env('APP_URL_UPLOADS', ''). '/' .$item;
-        });
-        collect($product)->push('images', $images);
-
+        $product->image_url = env('APP_URL_UPLOADS', ''). '/';
+        $product->vip_price = $product->pre_price - $product->diff_price;
         $product->total_quantity = collect($product->items)->sum('quantity');
-        auth()->id() && \Redis::zadd('user.' . auth()->id() . '.history', time(), $product->id);
+        $parent_id = auth()->user()->parent_id;
+        $parent_id && \Redis::zadd('user.' . auth()->user()->parent_id . '.history', time(), $product->id);
         // return $this->response->item($product, new ProductTransformer());
         return $product;
     }

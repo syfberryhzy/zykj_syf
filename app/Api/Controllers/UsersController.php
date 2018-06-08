@@ -32,7 +32,7 @@ class UsersController extends Controller
         foreach($data as $key => $item) {
             $val = $item->orders;
         }
-        return $data;
+        return response()->json(['data' => $data]);
     }
 
     /**
@@ -45,7 +45,7 @@ class UsersController extends Controller
             $val = $item->orders;
             $user = $item->orders->users;
         }
-        return $data;
+        return response()->json(['data' => $data]);
     }
     /**
     * 我的粉丝
@@ -53,11 +53,8 @@ class UsersController extends Controller
     public function history()
     {
         $productIds = \Redis::zrevrange('user.' . auth()->id() . '.history', 0, -1);
-        $products = collect($productIds)->map(function ($id) {
-            return Product::find($id)->only();
-        });
-
-        return $products;
+        $products = Product::whereIn('id', $productIds)->select('title')->get();
+        return response()->json(['data' => $products]);
     }
 
     /**
@@ -75,30 +72,35 @@ class UsersController extends Controller
           return response()->json(['status' => 'fail', 'code' => '422', 'message' => '系统出现错误']);
         }
         $res = $this->tree($result->member);
-        $other = collect($res)->sum('recommend');
+        $other = count($res) ? collect($res)->sum('recommend') : 0;
         $data = [
           'id' => $user->id,
           'recommend' => $result->recommend,
           'other' => $other,
-          'sum' => $result->recommend + $other
+          'sum' => $result->recommend + $other,
+          'team' => $res
         ];
         return response()->json(['data' => $data, 'status' => 'success', 'code' => '201']);
     }
 
     public function tree($ids)
     {
-        $ids = strpos($ids, ',') ?  implode(',', $ids) : [$ids];
-        $data = Recommend::whereIn('user_id', $ids)->get();
-
-        $result = collect($data)->map(function ($item, $key) {
-          return [
-            'id' => $item->id,
-            'user_id' => $item->user_id,
-            'user_avatar' => $item->user->avatar,
-            'user_name' => $item->user->username,
-            'recommend' => $item->recommend
-          ];
-        });
+        $result = [];
+        if ($ids) {
+          $ids = strpos($ids, ',') ?  explode(',', $ids) : [$ids];
+          $data = Recommend::whereIn('user_id', $ids)->get();
+          if($data) {
+            $result = collect($data)->map(function ($item, $key) {
+              return [
+                'id' => $item->id,
+                'user_id' => $item->user_id,
+                'user_avatar' => $item->user->avatar,
+                'user_name' => $item->user->username,
+                'recommend' => $item->recommend
+              ];
+            });
+          }
+        }
         return $result;
     }
     /**

@@ -36,6 +36,9 @@ class IndexController extends Controller
     public function newsList()
     {
       $list = News::where('status', 1)->orderBy('created_at', 'desc')->take(6)->get();
+      foreach($list as $key => $item) {
+        $item->image = env('APP_URL_UPLOADS', ''). '/'. $item->image;
+      }
       return $this->response->array($list);
     }
     /**
@@ -43,6 +46,7 @@ class IndexController extends Controller
     */
     public function newsDetail(News $news)
     {
+      $news->image = env('APP_URL_UPLOADS', ''). '/'. $news->image;
       return $this->response->array($news);
     }
 
@@ -85,7 +89,9 @@ class IndexController extends Controller
 
     public function productListByCate($category = 1, $sort = 0, $limit = null)
     {
-        $datas = Product::where(['status' => 1, 'category_id' => $category]);
+        $where = ['status' => 1, 'category_id' => $category];
+        $where[] = ['type', '<>', 4];
+        $datas = Product::where($where);
         if ($limit) {
           $datas = $datas->take($limit);
         }

@@ -5,6 +5,7 @@ namespace App\Repositories;
 use Prettus\Repository\Eloquent\BaseRepository;
 use Prettus\Repository\Criteria\RequestCriteria;
 use App\Repositories\ExchangeRepository;
+use App\Models\User;
 use App\Models\Exchange;
 use Illuminate\Support\Facades\Redis;
 use Auth;
@@ -64,8 +65,9 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         if ($user->status != 2) {
           return false;
         }
+        $rate = \DB('settings')->find(2)->value;
         $config = ['rate' => '100'];
-        $integral = number_format($order->total * $config['rate'] / 100, 2);
+        $integral = number_format($order->total * $rate / 100, 2);
         $current = $user->integral_current + $integral;
         $result = Exchange::create([
           'user_id' => $user->id,
@@ -88,14 +90,14 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         return $result;
     }
     #M币消费
-    public function m_pay()
+    public function m_pay($order, $user_id)
     {
-        $user = auth()->user();
+        $user = User::find($user_id);
         $res = $user->m_current - $order->total;
         $result = Exchange::create([
           'user_id' => $user->id,
           'total' => $user->m_current,
-          'amount' => $order->money,
+          'amount' => $order->total,
           'current' => $res,
           'model' => 'order',
           'uri' => $order->id,
@@ -172,6 +174,9 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
       $tj = OrderItem::select('product_id')->where('order_id', $tj_id)->get();
       $tj = collect($tj)->groupBy('product_id')->keys()->toArray();
       $parent = User::find($parent_id);
+      if(!$parent) {
+        return;
+      }
       foreach($xd as $key => $item) {
         #匹配不到相同商品
         if (!in_array($item['product_id'], $tj)) {

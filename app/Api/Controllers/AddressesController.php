@@ -14,8 +14,8 @@ class AddressesController extends Controller
     public function index()
     {
         $user_id = auth()->user()->id;
-        $datas = Address::where('user_id', $user_id)->orderBy('status', 'desc')->get();
-        return $this->response->array($datas)->setStatusCode(201);
+        $data = Address::where('user_id', $user_id)->orderBy('status', 'desc')->first();
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $data]);
     }
 
     /**
@@ -33,12 +33,7 @@ class AddressesController extends Controller
           'gender' => $request->gender == 1 ? 1: 2,
           'status' => $request->status == 1 ? 1 : 0,
         ]);
-        if ($request->status == 1) {
-            $result = Address::where('user_id', $user_id)->where('id', '<>', $address->id)->update(['status' => 0]);
-        }
-
-        return $this->response->array($address)->setStatusCode(201);
-        // return $this->response->created();
+      return response()->json(['status' => 'success', 'code' => '201', 'message' => '保存成功']);
     }
 
     public function show(Address $address)
@@ -48,8 +43,8 @@ class AddressesController extends Controller
 
     public function update(Address $address, AddressRequest $request)
     {
-        $this->authorize('update', $address);
-        $address = Address::update([
+        $user_id = auth()->user()->id;
+        $address = $address->update([
           'consignee' => $request->name,
           'phone' => $request->phone,
           'areas' => $request->areas,
@@ -57,10 +52,7 @@ class AddressesController extends Controller
           'gender' => $request->gender == 1 ? 1: 2,
           'status' => $request->status == 1 ? 1 : 0,
         ]);
-        if ($request->status == 1) {
-            $result = Address::where('user_id', $user_id)->where('id', '<>', $address->id)->update(['status' => 0]);
-        }
-        return $this->response->array($address)->setStatusCode(201);
+        return response()->json(['status' => 'success', 'code' => '201', 'message' => '保存成功']);
     }
     /**
     * 设置默认

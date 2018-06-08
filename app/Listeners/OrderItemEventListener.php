@@ -30,15 +30,18 @@ class OrderItemEventListener
       $order = $event->order;
 
       $data = collect($event->carts)->map(function ($item, $key) use ($order) {
+        $items = $item->items;
+        dd($items);
           return [
             'user_id' => auth()->user()->id,
             'order_id' => $order->id,
             'product_id' => $item['product_id'],
+            'product_item_id' => $item['item_id'],
             'title' => $item['name'],
             'norm' => $item['size'],
             'num' => $item['qty'],
-            'pre_price' => $item['price'],
-            'total_price' => $item['total']
+            'pre_price' => $items['price'],
+            'total_price' => $items['price'] * $item['qty']
           ];
       });
       $datas = collect($data)->values()->toArray();

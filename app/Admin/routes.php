@@ -12,6 +12,7 @@ Route::group([
 
     $router->get('/', 'HomeController@index');
 
+    $router->resource('site/settings', SettingsController::class);
     $router->resource('site/banners', BannerController::class);
     $router->resource('site/news', NewsController::class);
     $router->resource('site/coupon', CouponController::class);
@@ -25,8 +26,9 @@ Route::group([
     $router->resource('member/applies', ApplyController::class);
     $router->post('member/applies/operate/{apply}', 'ApplyController@operate');
     $router->resource('member/recommends', RecommendController::class);
-    $router->resource('member/integrals', IntegralController::class);
+    $router->resource('member/cashs', CashsController::class);
     $router->resource('member/mcoins', McoinController::class);
+    $router->resource('member/award', AwardController::class);
     $router->resource('member/withdraws', WithdrawController::class);
 
     $router->resource('manage/orders', OrderController::class);

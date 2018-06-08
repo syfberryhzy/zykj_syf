@@ -12,7 +12,7 @@ use Encore\Admin\Layout\Content;
 use App\Http\Controllers\Controller;
 use Encore\Admin\Controllers\ModelForm;
 
-class IntegralController extends Controller
+class AwardsController extends Controller
 {
     use ModelForm;
 
@@ -25,7 +25,7 @@ class IntegralController extends Controller
     {
         return Admin::content(function (Content $content) {
 
-            $content->header('积分明细');
+            $content->header('奖励明细');
             $content->description('列表');
 
             $content->body($this->grid());
@@ -42,7 +42,7 @@ class IntegralController extends Controller
     {
         return Admin::content(function (Content $content) use ($id) {
 
-            $content->header('积分明细');
+            $content->header('奖励明细');
             $content->description('查看');
 
             $content->body($this->form()->edit($id));
@@ -58,7 +58,7 @@ class IntegralController extends Controller
     {
         return Admin::content(function (Content $content) {
 
-            $content->header('积分明细');
+            $content->header('奖励明细');
             $content->description('添加');
 
             $content->body($this->form());
@@ -73,14 +73,14 @@ class IntegralController extends Controller
     protected function grid()
     {
         return Admin::grid(Exchange::class, function (Grid $grid) {
-            $grid->model()->where('status', Exchange::INTEGRAL_STATUS)->orderBy('created_at', 'desc');
+            $grid->model()->where('status', Exchange::AWARD_STATUS)->orderBy('created_at', 'desc');
             $grid->id('ID')->sortable();
             $grid->column('users.username', '用户');
             $grid->total('开始');
-            $grid->column('amount', '数目')->display(function () {
+            $grid->column('amount', '奖励')->display(function () {
               return $this->type == 1 ? '<i style="color:#3c8dbc;">+</i> '. $this->amount : '<i style="color:#dd4b39;">-</i> ' . $this->amount;
             });
-            $grid->current('结束');
+            $grid->current('总计');
             $grid->created_at('添加时间');
             // $grid->updated_at();
             $grid->disableExport();
@@ -91,9 +91,7 @@ class IntegralController extends Controller
               $filter->equal('user_id', '用户')->select(User::all()->pluck('username', 'id'));
               $filter->between('created_at', '添加时间')->datetime();
             });
-            $grid->actions(function ($actions) {
-              $actions->disableDelete();
-            });
+            $grid->disableActions();
         });
     }
 
@@ -108,8 +106,8 @@ class IntegralController extends Controller
 
             $form->display('id', 'ID');
             $form->select('user_id', '用户')->options(User::all()->pluck('username', 'id'));
-            $form->currency('total', '开始');
-            $form->currency('amount', '数目');
+            $form->currency('total', '总额');
+            $form->currency('amount', '消费');
             $form->currency('current', '结束');
             $form->radio('model', '来源')->options(['1'=> 'Exchanges','2'=> 'Order'])->default('1');
             $form->number('uri', '标注');

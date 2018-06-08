@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use App\Api\Requests\AgentRequest;
 use App\Repositories\AgentRepositoryEloquent;
 use App\Repositories\ExchangeRepositoryEloquent;
+use Illuminate\Support\Facades\Storage;
+use QrCode;
 
 class AgentsController extends Controller
 {
@@ -57,17 +59,31 @@ class AgentsController extends Controller
     /**
     * 生成代理二维码
     */
-    public function get_qrcode(Request $request) {
+    public function get_qrcode(Request $request)
+    {
 
         $res = Recommend::where('user_id', auth()->user()->id)->first();
         if (!$res) {
           return response()->json(['status' => 'fail', 'code' => '401', 'message' => '您还没有成为代理']);
         }
-        if ($res->qr_code) {
-          return response()->json(['status' => 'success', 'code' => '201', 'data' => env('APP_URL_QRCODES').$res->qr_code]);
-        }
-        $code =  $this->agent->getQrcode($request, auth()->user()->id);
-        return response()->json(['status' => 'success', 'code' => '201', 'data' => env('APP_URL_QRCODES').$code]);
+        if (!$res->qr_code) {
+          $mini = \EasyWeChat::miniProgram();
+          $path = 'pages/index?agent_id='. auth()->user()->id;
+          $optional = [
+            'width' => 200,
+          ];
+          $data = $mini->app_code->get($path, $optional);
+          $file_name = date('Y_m_d_') . uniqid() . '.png';
+          $result = Storage::disk('qrcode')->put($file_name, $data);
+
+          if ($result) {
+            $res->qr_code = $file_name;
+            $res->save();
+            return response()->json(['status' => 'success', 'code' => '201', 'data' => env('APP_URL_QRCODES').'/'.$file_name]);
+          }
+           return response()->json(['status' => 'fail', 'code' => '422', 'message' => '生成代理二维码失败']);
+         }
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => env('APP_URL_QRCODES').'/'. $res->qr_code]);
     }
 
     /**
@@ -79,7 +95,12 @@ class AgentsController extends Controller
      */
     public function update(Request $request, $id)
     {
-        //
+    //   $file_name = date('Y_m_d_') . uniqid() . '.png';
+    //
+    // $result = Storage::disk('qrcode')->put($file_name, '');
+    // QrCode::format('png')->errorCorrection('L')->size(200)->merge('/public/logo.png',.50)->margin(2)
+    // ->color(220,182,99)
+    // ->encoding('UTF-8')->generate('http://laravelacademy.org', public_path('uploads/qrcode/' . $file_name));
     }
 
     /**

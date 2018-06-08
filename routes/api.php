@@ -32,8 +32,7 @@ $api->version('v1', [//默认
         // 'expires' => config('api.rate_limits.sign.expires'),
   // ]);
 
-  $api->get('carts', 'CartsController@index');
-  $api->post('carts/{item}', 'CartsController@store');//
+
 
 
   $api->get('shop/banners', 'IndexController@index');
@@ -45,7 +44,7 @@ $api->version('v1', [//默认
   $api->get('shop/search/{title}/{sort}/{limit?}', 'IndexController@productListByName');
 
   // $api->get('products/{product}', 'ProductsController@show');
-  $api->get('evaluates/{product}', 'ProductsController@evaluate');
+  $api->get('evaluates/{product}', 'ProductsController@evaluate');//商品评价列表
 
   // 小程序登录
   $api->post('weapp/authorizations', 'AuthorizationsController@weappStore')
@@ -73,23 +72,28 @@ $api->version('v1', [//默认
 
     # 收货地址
     $api->resource('addresses', 'AddressesController');
-    $api->post('addresses/{address}/default', 'AddressesController@setDefault');
-    # 购物车
 
-    $api->put('carts/{item}', 'CartsController@update');
-    $api->delete('carts', 'CartsController@destroy');
+    # 购物车
+    $api->get('carts', 'ShoppingCartsController@index');
+    $api->post('carts/{item}', 'ShoppingCartsController@store');//
+    $api->put('carts/{item}', 'ShoppingCartsController@update');
+    $api->delete('carts', 'ShoppingCartsController@destroy');
 
     #订单
     $api->resource('orders', 'OrdersController');//订单基础信息
+    $api->post('orders/evaluate/{order}', 'OrdersController@evaluate');//订单评价
     $api->get('share/{order}', 'OrdersController@share');//分享赚
-    $api->resource('wechat', 'WechatController');
+    $api->get('orders/logistics/{order}', 'OrdersController@logistics');//查看物流
+    #支付
     $api->post('wechat/sure', 'WechatController@orderSure');//确认订单
-    $api->post('wechat/pay/{order}', 'WechatController@pay_order');//提交订单
+    $api->post('wechat', 'WechatController@store');//提交订单
+    $api->any('/wechat/payment/notify', 'WechatController@update');//支付回调
+
     #代理
-    $api->resource('agents', 'AgentsController');
+
     $api->resource('agents', 'AgentsController');
     $api->post('agents/getcode', 'AgentsController@get_qrcode');//代理二维码
-    $api->post('withward', 'AgentsController@withward');
+    $api->post('withward', 'AgentsController@withward');//提现申请
   });
 
 

@@ -10,6 +10,7 @@ use App\Models\Recommend;
 use App\Validators\AgentValidator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Redis;
+use QrCode;
 use Auth;
 /**
  * Class AgentRepositoryEloquent.
@@ -45,6 +46,11 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
       // 等级:A--会员=》会员， B--会员=》游客， C--游客=》游客 D = 无推荐 E=本人自己
         $user = auth()->user();
         $result = [];
+        if ($user->status == 2) {
+            $result['rank'] = 'A';
+            $result['agent_id'] = $user->parent_id;
+            return $result;
+        }
         if ($user->parent_id != 0) {
             $result['rank'] = $user->status == 2 ? 'A' : 'B';
             $result['agent_id'] = $user->parent_id;
@@ -67,15 +73,14 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
             }
         }
         # 分享赚
-        if ($request->sell_id && $request->orders) {
+        if ($request->sell_id && $request->order_id) {
             $agent = User::find($request->sell_id);
             $result['rank'] = 'C';
             $result['agent_id'] = $agent->id;
             $result['order_id'] = $request->order_id;
             return $result;
         }
-
-        if(count($request->all()) == 0) {
+        if(!$request->all()) {
             $result['rank'] = 'D';
             return $result;
         }
@@ -119,7 +124,10 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
         #上级代理 --游客记录+1
         if ($user->parent_id != 0) {
           $recommend = Recommend::where('user_id', $user->parent_id)->first();
-          $recommend->visitor .= $recommend->visit == 0 ? $user->id : ','. $user->id;
+
+          $vistor = $recommend->visit == 0 ? [] : explode(',', $recommend->visitor);
+          $vistor[] = $user->id;
+          $recommend->visitor .= implode(',', $vistor);
           $recommend->visit += 1;
           $recommend->save();
         }
@@ -185,14 +193,13 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
         $this->addMember($user);
     }
 
-    //获取access_token
+   //获取access_token
     public function get_access_token(){
         $appid = env('WECHAT_MINI_PROGRAM_APPID');
         $secret = env('WECHAT_MINI_PROGRAM_SECRET');
         $url = "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={$appid}&secret={$secret}";
         return $data = $this->curl_get($url);
     }
-
     public function curl_get($url) {
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, $url);
@@ -206,18 +213,16 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
     /**
     * 生成代理二维码
     */
-    public function getQrcode($request, $userId) {
+    public function getQrcode1($request, $userId) {
         header('content-type:image/png');
         //header('content-type:image/gif');格式自选，不同格式貌似加载速度略有不同，想加载更快可选择jpg
         //header('content-type:image/jpg');
-
         $data = array();
         // $data['scene'] = $request->scene;
         // $data['path'] = $request->path;
         // $data['auto_color'] = $request->auto_color;
         // $data['line_color'] = $request->line_color;
         // $data['width'] = $request->width;
-
         $data['scene'] = '10086';
         $data['path'] = "pages/index?agent_id=21";
         // $data['line_color'] = '{"r":"220","g":"182","b":"99"}';
@@ -226,12 +231,50 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
         $access_token= $access['access_token'];
         $url = "https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=" . $access_token;
         $da = $this->get_http_array($url,$data);
-
         $file_name = date('Y_m_d_') . uniqid() . '.png';
         $result = Storage::disk('qrcode')->put($file_name, $da);
         Recommend::where('user_id', $userId)->update(['qr_code' => $file_name]);
         return $file_name;
     }
+	public function getQrcode($request, $userId) {
+
+
+        //$data = array();
+        // $data['scene'] = $request->scene;
+        // $data['page'] = $request->path;
+        // $data['auto_color'] = $request->auto_color;
+        // $data['line_color'] = $request->line_color;
+        // $data['width'] = $request->width;
+        $scene = '10086';
+        $page = "pages/index?agent_id=21";
+
+        $access = json_decode($this->get_access_token(),true);
+        $access_token= $access['access_token'];
+        $url = "https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=" . $access_token;
+
+        $file_name =  date('Y_m_d_') . uniqid() . '.png';
+       $file = public_path('uploads/qrcode/' . $file_name);
+
+    $qrcode = array(
+        'scene'         => $scene,
+        'width'         => 200,
+        'page'          => $page,
+        'auto_color'    => true
+    );
+    $result = request($url,true,'POST',json_encode($qrcode));
+
+    $errcode = json_decode($result,true)['errcode'];
+    $errmsg = json_decode($result,true)['errmsg'];
+    if($errcode)
+		return array('status'=>0,'info'=>$errmsg);
+    $res = file_put_contents($file,$result);            //  将获取到的二维码图片流保存成图片文件
+  dump($res);
+    if($res===false)
+		return array('status'=>0,'info'=>'生成二维码失败');
+	dd($file);
+    return array('status'=>1,'info'=>$file);           //返回本地图片地址
+    }
+
 
     public function get_http_array($url,$post_data) {
         $ch = curl_init();
@@ -242,7 +285,6 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
         curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
         $output = curl_exec($ch);
         curl_close($ch);
-
         $out = json_decode($output);
         return $out;
     }

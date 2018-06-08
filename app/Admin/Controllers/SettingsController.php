@@ -2,8 +2,7 @@
 
 namespace App\Admin\Controllers;
 
-use App\Models\Exchange;
-use App\Models\User;
+use App\Models\Settings;
 
 use Encore\Admin\Form;
 use Encore\Admin\Grid;
@@ -12,7 +11,7 @@ use Encore\Admin\Layout\Content;
 use App\Http\Controllers\Controller;
 use Encore\Admin\Controllers\ModelForm;
 
-class McoinController extends Controller
+class SettingsController extends Controller
 {
     use ModelForm;
 
@@ -25,7 +24,7 @@ class McoinController extends Controller
     {
         return Admin::content(function (Content $content) {
 
-            $content->header('M币明细');
+            $content->header('系统设置');
             $content->description('列表');
 
             $content->body($this->grid());
@@ -42,8 +41,8 @@ class McoinController extends Controller
     {
         return Admin::content(function (Content $content) use ($id) {
 
-            $content->header('M币明细');
-            $content->description('查看');
+            $content->header('系统设置');
+            $content->description('编辑');
 
             $content->body($this->form()->edit($id));
         });
@@ -58,7 +57,7 @@ class McoinController extends Controller
     {
         return Admin::content(function (Content $content) {
 
-            $content->header('M币明细');
+            $content->header('系统设置');
             $content->description('添加');
 
             $content->body($this->form());
@@ -72,26 +71,14 @@ class McoinController extends Controller
      */
     protected function grid()
     {
-        return Admin::grid(Exchange::class, function (Grid $grid) {
-          $grid->model()->where('status', Exchange::MCOIN_STATUS)->orderBy('created_at', 'desc');
-          $grid->id('ID')->sortable();
-          $grid->column('users.username', '用户');
-          $grid->total('开始');
-          $grid->column('amount', '数目')->display(function () {
-            return $this->type == 1 ? '<i style="color:#3c8dbc;">+</i> '. $this->amount : '<i style="color:#dd4b39;">-</i> ' . $this->amount;
-          });
-          $grid->current('余额');
-          $grid->created_at('添加时间');
-          // $grid->updated_at();
-          $grid->disableExport();
-          $grid->disableRowSelector();
-          $grid->disableCreateButton();
-          $grid->filter(function ($filter) {
-            $filter->disableIdFilter();
-            $filter->equal('user_id', '用户')->select(User::all()->pluck('username', 'id'));
-            $filter->between('created_at', '添加时间')->datetime();
-          });
-          $grid->disableActions();
+        return Admin::grid(Settings::class, function (Grid $grid) {
+
+            $grid->id('ID')->sortable();
+            $grid->name('名称');
+            $grid->model('模型');
+            $grid->value('设置');
+            $grid->created_at();
+            $grid->updated_at();
         });
     }
 
@@ -102,10 +89,12 @@ class McoinController extends Controller
      */
     protected function form()
     {
-        return Admin::form(Exchange::class, function (Form $form) {
+        return Admin::form(Settings::class, function (Form $form) {
 
             $form->display('id', 'ID');
-
+            $form->text('name', '名称');
+            $form->text('model', '模型');
+            $form->text('value', '设置');
             $form->display('created_at', 'Created At');
             $form->display('updated_at', 'Updated At');
         });
