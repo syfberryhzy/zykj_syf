@@ -18,7 +18,7 @@ class ProductsController extends Controller
         $product->vip_price = $product->pre_price - $product->diff_price;
         $product->total_quantity = collect($product->items)->sum('quantity');
         $parent_id = auth()->user()->parent_id;
-        $parent_id && \Redis::zadd('user.' . auth()->user()->parent_id . '.history', time(), $product->id);
+        $parent_id && \Redis::zadd('user.' . auth()->user()->parent_id . '.history', time(), $product->id, auth()->id);
         // return $this->response->item($product, new ProductTransformer());
         return $product;
     }

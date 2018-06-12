@@ -182,7 +182,8 @@ class WechatController extends Controller
           'customerfreightfee' => '0.00',//邮费
           'total' => $orders['sum']  - $preferentialtotal,//订单实际应付金额
           'out_trade_no' => $out_trade_no,
-          'remark' => $request->remark
+          'remark' => $request->remark,
+          'attach' => Redis::get('user_rank')//附加參數 string
         ]);
 
         if (!$order) {
@@ -241,14 +242,16 @@ class WechatController extends Controller
         // }
         $where[] = $request->out_trade_no ?  ['out_trade_no', '=', $request->out_trade_no] : ['prepay_id', '=', $request->prepay_id];
         $order =   $order = Order::where($where)->firstOrFail();
+        $user_rank = $order->attach;
+        Redis::set('user_rank', $user_rank);
 
         // if ($order['type'] == 1 && $user->m_current < $order['total']) {
         //   return response()->json(['status' => 'fail', 'code' => '401', 'message' => 'M币不足']);
         // }
 
-        if (2 === $order->status) {
-          return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请勿重复支付']);
-        }
+        // if (2 === $order->status) {
+        //   return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请勿重复支付']);
+        // }
         $order->type == 0 ? $this->wxpay($order) : $this->mbpay($order);
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '操作成功']);
     }
@@ -257,22 +260,18 @@ class WechatController extends Controller
     */
     public function wxpay($order)
     {
-        $user = auth()->user();
-
-        #M增加
-        $integral = $order->total;
-        $current = $user->integral_current + $integral;
+        $userID = $order->user_id;
         #现金付款
-        $result = $this->exchanges->wx_pay($order);
+        $result = $this->exchanges->wx_pay($userID, $order);
         if ($result) {
           #订单--已付
           $order->status = 2; //已付
           $order->paiedtotal = $order->total;
           $order->save();
           #代理--M币增加
-          $this->exchanges->m_add($order);
+          $this->exchanges->m_add($userID, $order);
           #是否有上级推荐购买：
-          $this->exchanges->get_share($order->id);
+          $add = $this->exchanges->get_share($userID, $order->id);
           return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单支付成功']);
         }
         return response()->json(['status' => 'fail', 'code' => '422', 'message' => '订单支付失败']);
@@ -288,7 +287,7 @@ class WechatController extends Controller
           return response()->json(['status' => 'fail', 'code' => '401', 'message' => '您的M币不足']);
         }
         #扣除M币
-        $result = $this->exchanges->m_pay($order, $user->id);
+        $result = $this->exchanges->m_pay($user->id, $order);
 
         if ($result) {
           #订单--已付

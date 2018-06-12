@@ -118,7 +118,7 @@ class AgentsController extends Controller
         if (!$request->money) {
           return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请输入提现金额']);
         }
-        if ($this->exchange->withward($request->money)) {
+        if ($this->exchange->withward(auth()->user()->id, $request->money)) {
           return response()->json(['status' => 'success', 'code' => '201', 'message' => '提现申请已提交']);
         }
         return response()->json(['status' => 'fail', 'code' => '422', 'message' => '悟空，你又调皮']);

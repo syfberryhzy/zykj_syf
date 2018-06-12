@@ -51,6 +51,10 @@ return [
             'driver' => 'local',
             'root'   => public_path('uploads/qrcode'),
         ],
+        'evaluate' => [
+            'driver' => 'local',
+            'root'   => public_path('uploads/evaluate'),
+        ],
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

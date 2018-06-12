@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\productItem;
@@ -24,5 +25,10 @@ class OrderItem extends Model
     public function productItems()
     {
       return $this->belongsTo(productItem::class, 'product_item_id');
+    }
+
+    public function users()
+    {
+      return $this->belongsTo(USers::class, 'user_id');
     }
 }

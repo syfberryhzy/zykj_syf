@@ -68,8 +68,7 @@ class AuthorizationsController extends Controller
           'gender' => $request->gender,
           'parent_id' => $request->parent_id ?? 0,
         ]);
-        # recommend 推荐记录
-        $this->agent->addVister($user);
+        
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '注册成功']);
     }
 

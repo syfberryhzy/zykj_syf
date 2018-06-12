@@ -6,9 +6,12 @@ use Prettus\Repository\Eloquent\BaseRepository;
 use Prettus\Repository\Criteria\RequestCriteria;
 use App\Repositories\ExchangeRepository;
 use App\Models\User;
+use App\Models\OrderItem;
 use App\Models\Exchange;
+use App\Models\Recommend;
 use Illuminate\Support\Facades\Redis;
 use Auth;
+use Carbon\Carbon;
 use App\Validators\ExchangeValidator;
 
 /**
@@ -40,9 +43,9 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
 
 
     //个人消费
-    public function wx_pay($order)
+    public function wx_pay($userID, $order)
     {
-        $user = auth()->user();
+        $user = User::find($userID);
         $result = Exchange::create([
             'user_id' => $user->id,
             'total' => $order->total,
@@ -59,9 +62,9 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         return $result;
     }
     //M币增加--代理身份可获得
-    public function m_add($order)
+    public function m_add($userID, $order)
     {
-        $user = auth()->user();
+        $user = User::find($userID);
         if ($user->status != 2) {
           return false;
         }
@@ -90,9 +93,9 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         return $result;
     }
     #M币消费
-    public function m_pay($order, $user_id)
+    public function m_pay($userID, $order)
     {
-        $user = User::find($user_id);
+        $user = User::find($userID);
         $res = $user->m_current - $order->total;
         $result = Exchange::create([
           'user_id' => $user->id,
@@ -111,9 +114,9 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
     /**
     * 提现申请
     */
-    public function withward($data)
+    public function withward($userID, $data)
     {
-        $user = auth()->user();
+        $user = User::find($userID);
         $res = $user->victory_current - $data;
         if ($res < 0) {
             return false;
@@ -146,17 +149,18 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
     }
 
     //推荐等级
-    public function get_share($orderId)
+    public function get_share($userID, $orderId)
     {
-        $user = auth()->user();
+        $user = User::find($userID);
         $user_rank = unserialize(Redis::get('user_rank'));
+        // dump($user_rank);
         $rank = $user_rank['rank'];
         if (in_array($rank, ['B', 'C'])) {
           if ($rank == 'B') {
             #diff_price
             $tj_id = $orderId;
             $share_price = 'diff_price';
-            $parent_id = auth()->user()->parent_id;
+            $parent_id = $user->parent_id;
           }else if ($rank == 'C') {
             #share_price
             $tj_id = $user_rank['order_id'];
@@ -191,7 +195,7 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
           'amount' => $price,
           'current' => $parent->victory_current + $price,
           'model' => 'order_item',
-          'uri' => $item['id'].$item['product_id'],
+          'uri' => $item['id'],//order_item_id
           'status' => Exchange::AWARD_STATUS,
           'type' => Exchange::ADD_TYPE
         ]);
@@ -201,5 +205,96 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
           $parent->increment('victory_total', $price);
         }
       }
+    }
+
+    /**
+    * 当天的个人消费
+    */
+    public function spend($userID) {
+
+      $user = User::find($userID);
+      $where[] = ['user_id', $userID];
+
+      $where[] = ['created_at', '>=', Carbon::now()->startOfDay()];
+      $where[] = ['created_at', '<=', Carbon::now()->endOfDay()];
+      #是否已存在记录，存在 = 删除
+      $log = Exchange::where($where)->where('status', Exchange::SPEND_DATE)->delete();
+      $where[] = ['status', Exchange::CASH_STATUS];
+      $datas = Exchange::select('amount')->where($where)->get();
+      $total = collect($datas)->sum('amount');
+      $result = Exchange::create([
+        'user_id' => $userID,
+        'total' => $total,
+        'amount' => $total,
+        'current' => 0,
+        'model' => 'spend_self',
+        'uri' => 0,
+        'status' => Exchange::SPEND_DATE,
+        'type' => Exchange::ADD_TYPE
+      ]);
+
+      if ($result) {
+        $user->increment('spend_current', 0);//当晚清零
+      }
+    }
+
+    /**
+    * 当天的个人业绩
+    */
+    public function victory($userID) {
+      $user = User::find($userID);
+      $ids = $this->begats($userID, $i = 1);
+
+      $where[] = ['created_at', '>=', Carbon::now()->startOfDay()];
+      $where[] = ['created_at', '<=', Carbon::now()->endOfDay()];
+
+      #是否已存在记录，存在 = 删除
+      $log = Exchange::where($where)->where('status', Exchange::VICTORY_DATE)->delete();
+
+      $where[] = ['status', Exchange::SPEND_DATE];
+      $datas = Exchange::select('amount')->whereIn('user_id', $ids)->where($where)->get();
+      $total = collect($datas)->sum('amount');
+      $result = Exchange::create([
+        'user_id' => $userID,
+        'total' => $total,
+        'amount' => $total,
+        'current' => 0,
+        'model' => 'victory_self',
+        'uri' => '',
+        'status' => Exchange::VICTORY_DATE,
+        'type' => Exchange::ADD_TYPE
+      ]);
+
+      if ($result) {
+        $parent->increment('victory_current', 0);//当晚清零
+      }
+    }
+
+    /**
+    * 后裔, 系谱, 子孙
+    */
+    public function begats($userID, $i = 1)
+    {
+        $datas = [];
+        $user = User::find($userID);
+        if($user) {
+          $datas[] = $userID;
+        }
+        if($user->status == 2) {
+          $log = Recommend::where('user_id', $user->id)->first();
+          if ($log) {
+            $members = $log->member ? json_decode($log->member) : [];
+            $vistors = $log->visitor ? json_decode($log->visitor) : [];
+
+            $datas = array_merge($datas, $members, $vistors);
+            if($i == 1) {
+              foreach($members as $key => $val) {
+                $data = $this->begats($val, $i = 2);
+                $datas = array_merge($datas, $data);
+              }
+            }
+          }
+        }
+        return array_unique($datas);
     }
 }

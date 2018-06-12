@@ -67,6 +67,8 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
             if ($agent && $agent->status == 2 && $user->status == 0) {
               $user->parent_id = $agent->id;
               $user->save();
+              # 添加游客数据
+              $this->joinIn($user, $is_vip = false);
               $result['rank'] = 'B';
               $result['agent_id'] = $agent->id;
               return $result;
@@ -117,44 +119,93 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
     }
 
     /**
-    * 添加游客
+    * 加入代理数据
     */
-    public function addVister($user)
+    public function joinIn($user, $is_vip = true)
     {
-        #上级代理 --游客记录+1
-        if ($user->parent_id != 0) {
-          $recommend = Recommend::where('user_id', $user->parent_id)->first();
+      if ($user->parent_id == 0) {
+          return;
+      }
 
-          $vistor = $recommend->visit == 0 ? [] : explode(',', $recommend->visitor);
-          $vistor[] = $user->id;
-          $recommend->visitor .= implode(',', $vistor);
-          $recommend->visit += 1;
-          $recommend->save();
+      $recommend = Recommend::where('user_id', $user->parent_id)->first();
+
+      $vistors = $recommend->visitor ? json_decode($recommend->visitor) : [];
+      $members = $recommend->member ? json_decode($recommend->member) : [];
+
+      #升级会员
+      if ($is_vip) {
+        if ($vistors && in_array($user->id, $vistors)) {
+          $key = array_search($user->id, $vistors);
+          unset($vistors[$key]);
+        } else {
+          array_push($members, $user->id);
         }
+      } else {
+        if ($members && in_array($user->id, $members)) {
+          $key = array_search($user->id, $members);
+          unset($members[$key]);
+        } else {
+           array_push($vistors, $user->id);
+        }
+      }
+      $recommend->visitor = json_encode($vistors);
+      $recommend->member = json_encode($members);
+      $recommend->visit = count($vistors);
+      $recommend->recommend = count($members);
+      $recommend->save();
+      return;
     }
 
     /**
-    * 添加会员
+    * 团队业绩
     */
-    public function addMember($user)
+    public function victoryTree($user)
     {
-        $recommend = Recommend::where('user_id', $user->parent_id)->first();
-        #游客记录-1
-        // $visitors = $recommend->visit > 1 ? implode(',', $recommend->visitor) : [$recommend->visitor];
-        $visitors = $this->get_array($recommend->visitor);
-        if ($key = array_search($user->id, $visitors)) {
-          array_splice($visitors, $key, 1);
-          $recommend->visit -= 1;
-        }
-        $recommend->visitor = count($visitors) > 1 ? explode(',', $visitors) : '';
-
-        #会员记录+1
-        if (!$this->isExist($user, $recommend->member)) {
-          $recommend->member .= $recommend->recommend == 0 ? $user->id : ','. $user->id;
-          $recommend->recommend += 1;
-        }
-        $recommend->save();
+        // 每天消费总结
     }
+
+
+
+        /**
+        * 添加游客
+        */
+        public function addVister($user)
+        {
+            #上级代理 --游客记录+1
+            if ($user->parent_id != 0) {
+              $recommend = Recommend::where('user_id', $user->parent_id)->first();
+
+              $vistor = $recommend->visit == 0 ? [] : explode(',', $recommend->visitor);
+              $vistor[] = $user->id;
+              $recommend->visitor .= implode(',', $vistor);
+              $recommend->visit += 1;
+              $recommend->save();
+            }
+        }
+
+        /**
+        * 添加会员
+        */
+        public function addMember($user)
+        {
+            $recommend = Recommend::where('user_id', $user->parent_id)->first();
+            #游客记录-1
+            // $visitors = $recommend->visit > 1 ? implode(',', $recommend->visitor) : [$recommend->visitor];
+            $visitors = $this->get_array($recommend->visitor);
+            if ($key = array_search($user->id, $visitors)) {
+              array_splice($visitors, $key, 1);
+              $recommend->visit -= 1;
+            }
+            $recommend->visitor = count($visitors) > 1 ? explode(',', $visitors) : '';
+
+            #会员记录+1
+            if (!$this->isExist($user, $recommend->member)) {
+              $recommend->member .= $recommend->recommend == 0 ? $user->id : ','. $user->id;
+              $recommend->recommend += 1;
+            }
+            $recommend->save();
+        }
+
 
     /**
     * 是否存在
@@ -190,7 +241,7 @@ class AgentRepositoryEloquent extends BaseRepository implements AgentRepository
             'parent_id' => $user->parent_id
           ]);
         }
-        $this->addMember($user);
+        $this->joinIn($user, $is_vip = true);
     }
 
    //获取access_token

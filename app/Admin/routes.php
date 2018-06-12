@@ -33,7 +33,8 @@ Route::group([
 
     $router->resource('manage/orders', OrderController::class);
     $router->resource('manage/evaluates', EvaluateController::class);
-    // $router->resource('mall/products', ProductController::class);
+
+    $router->resource('accumulative/boards', BoardsController::class);
     // $router->resource('mall/products', ProductController::class);
 
 });

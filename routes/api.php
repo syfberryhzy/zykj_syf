@@ -45,7 +45,7 @@ $api->version('v1', [//默认
 
   // $api->get('products/{product}', 'ProductsController@show');
   $api->get('evaluates/{product}', 'ProductsController@evaluate');//商品评价列表
-
+  $api->any('/wechat/payment/notify', 'WechatController@update');//支付回调
   // 小程序登录
   $api->post('weapp/authorizations', 'AuthorizationsController@weappStore')
       ->name('api.weapp.authorizations.store');
@@ -81,13 +81,14 @@ $api->version('v1', [//默认
 
     #订单
     $api->resource('orders', 'OrdersController');//订单基础信息
+    $api->post('uploads', 'OrdersController@uploads');//上传图片--单一
     $api->post('orders/evaluate/{order}', 'OrdersController@evaluate');//订单评价
     $api->get('share/{order}', 'OrdersController@share');//分享赚
     $api->get('orders/logistics/{order}', 'OrdersController@logistics');//查看物流
     #支付
     $api->post('wechat/sure', 'WechatController@orderSure');//确认订单
     $api->post('wechat', 'WechatController@store');//提交订单
-    $api->any('/wechat/payment/notify', 'WechatController@update');//支付回调
+
 
     #代理
 
@@ -97,7 +98,7 @@ $api->version('v1', [//默认
   });
 
 
-  // $api->get('carts/index', 'CartsController@index');
+  $api->get('tasks/users', 'TaskController@getUser');
 
   // $api->get('carts/index', 'CartsController@index');
 });
