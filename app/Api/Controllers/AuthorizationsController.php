@@ -68,7 +68,7 @@ class AuthorizationsController extends Controller
           'gender' => $request->gender,
           'parent_id' => $request->parent_id ?? 0,
         ]);
-        
+
         return response()->json(['status' => 'success', 'code' => '201', 'message' => '注册成功']);
     }
 

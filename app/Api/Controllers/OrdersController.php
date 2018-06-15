@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Exchange;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Evaluate;
 use App\Repositories\OrderRepositoryEloquent;
 use App\Transformers\OrderTransformer;
 use App\Handlers\WxImageUploadHandler;
@@ -131,31 +132,24 @@ class OrdersController extends Controller
     }
 
 
-  public function evaluate(Order $order, Request $request, ImageUploadHandler $uploader)
+  public function evaluate(Order $order, Request $request)
     {
       $user = auth()->user();
       $data = $request->data;
       // \Redis::set($user->id.'eval', serialize($data));
       // $data = unserialize(\Redis::get($user->id.'eval'));
       // dd($res);
-      // dd($data);
+      // dd($user);
       foreach ($data as $key => $value) {
-          // #图片上传
-          // if($value['images']) {
-          //   foreach($value['images'] as $key => $item) {
-          //     $result = $uploader->save($item, 'evaluate', $user->id);
-          //     if ($result) {
-          //         $images[] = $result['path'];
-          //     }
-          //   }
-          // }
+          $images = $value['images'] ? json_encode($value['images'], JSON_UNESCAPED_UNICODE) : '';
           $datas[] = [
-              'user_id' => $user_id,
+              'user_id' => $user->id,
               'order_id' => $order->id,
               'order_item_id' => $value['item_id'],
               'product_id' => $value['product_id'],
               'content' => $value['content'],
-              'images' => $value['images'] ? json_encode($value['images'], JSON_UNESCAPED_UNICODE) : ''
+              'images' => $images
+              // 'images' => $value['images'] ? json_encode($value['images'], JSON_UNESCAPED_UNICODE) : ''
           ];
       }
       $res = Evaluate::insert($datas);
@@ -169,6 +163,38 @@ class OrdersController extends Controller
       return response()->json(['status' => 'fail', 'code' => '422', 'message' => '操作失败']);
     }
 
+    public function refund(Order $order, Request $request)
+    {
+      // dd($order);
+      if($order->type == 1) {
+        return response()->json(['status' => 'fail', 'code' => '401', 'message' => '兑换商品不可退款']);
+      }
+      if($order->status != 2) {
+        return response()->json(['status' => 'fail', 'code' => '401', 'message' => '未付款订单不可退款']);
+      }
+      if($order->refund_status != 0) {
+        return response()->json(['status' => 'fail', 'code' => '401', 'message' => '该订单已经申请过退款，请勿重复申请']);
+      }
+      if(!$request->refund_reason) {
+        return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请填写退款理由']);
+      }
+      $extra = $order->extra ?: [];
+      $extra['refund_reason'] = $request->refund_reason;
+      $out_refund_no =  date('YmdHis') . rand(1000, 9999);
+
+      $order->refund_status = 1;
+      $order->out_refund_no = $out_refund_no;
+      $order->extra = $out_refund_no;
+      if($order->save()) {
+        return response()->json(['status' => 'success', 'code' => '201', 'message' => '申请退款成功,等待处理']);
+      }
+      // $payment = \EasyWeChat::payment();
+      //
+      // $result = $payment->refund->byOutTradeNumber($order->out_trade_no, $out_refund_no, 1, 1, [
+      //     'refund_desc' => '商品已售完',
+      // ]);
+      return response()->json(['status' => 'fail', 'code' => '422', 'message' => '申请退款失败']);
+    }
     /**
     * 上传图片
     */
@@ -176,10 +202,11 @@ class OrdersController extends Controller
     {
         $user = auth()->user();
         $result = $uploads->save($_FILES['wxfile'], 'evaluate', $user->id);
-        if ($result) {
-          return response()->json(['status' => 'success', 'code' => '201', 'message' => '操作成功', 'data' => [env('APP_URL_UPLOADS').'/evaluate/'.$result, $result]]);
-        }
-        return response()->json(['status' => 'fail', 'code' => '422', 'message' => '操作失败']);
+        return response()->json($result);
+        // if ($result) {
+        //   return response()->json(['status' => 'success', 'code' => '201', 'message' => '操作成功', 'data' => [env('APP_URL_UPLOADS').'/evaluate/'.$result, $result]]);
+        // }
+        // return response()->json(['status' => 'fail', 'code' => '422', 'message' => '操作失败']);
     }
 
     public function logistics(Order $order)

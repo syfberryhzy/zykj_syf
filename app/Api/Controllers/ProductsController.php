@@ -18,7 +18,10 @@ class ProductsController extends Controller
         $product->vip_price = $product->pre_price - $product->diff_price;
         $product->total_quantity = collect($product->items)->sum('quantity');
         $parent_id = auth()->user()->parent_id;
-        $parent_id && \Redis::zadd('user.' . auth()->user()->parent_id . '.history', time(), $product->id, auth()->id);
+        $user_id = auth()->user()->id;
+        // \Redis::zrem
+        $parent_id && \Redis::zadd('history.' . $parent_id .'.chilren', time(), $user_id .'_'. $product->id. '_'. $product->title. '_'. time());
+        // $parent_id && \Redis::zadd('user.' . $parent_id . '.history.user', time(), $user_id);
         // return $this->response->item($product, new ProductTransformer());
         return $product;
     }

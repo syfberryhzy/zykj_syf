@@ -53,6 +53,18 @@ class TaskController extends Controller
       return $users;
     }
 
+    public function task()
+    {
+      #11:55分开始执行
+      \Log::info('定时任务开始:'. Carbon::now());
+      $users = $this->getUser();
+      if($users) {
+        foreach($users as $item) {
+          $this->exchanges->clearDate($item);
+        }
+        \Log::info('定时任务结束:'. Carbon::now());
+      }
+    }
     /**
     * 当天的个人业绩
     */

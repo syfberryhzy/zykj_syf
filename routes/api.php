@@ -64,11 +64,11 @@ $api->version('v1', [//默认
     $api->resource('/coupons', 'UserCouponsController');
     $api->post('/receive/{coupon}', 'UserCouponsController@receive');
     # 个人中心
-    $api->get('/client', 'UsersController@client');
-    $api->get('/earn', 'UsersController@earn');
-    $api->get('/agent', 'UsersController@agent');
-    $api->get('/user/product/history', 'UsersController@history');
-    $api->get('/user/coupons', 'UsersController@coupons');
+    $api->get('/client', 'UsersController@client');//我的客户
+    $api->get('/earn', 'UsersController@earn');//我的收入
+    $api->get('/agent', 'UsersController@agent');//我的代理
+    $api->get('/history', 'UsersController@history');//我的粉丝
+    $api->get('/user/coupons', 'UsersController@coupons');//我的优惠券
 
     # 收货地址
     $api->resource('addresses', 'AddressesController');
@@ -83,6 +83,7 @@ $api->version('v1', [//默认
     $api->resource('orders', 'OrdersController');//订单基础信息
     $api->post('uploads', 'OrdersController@uploads');//上传图片--单一
     $api->post('orders/evaluate/{order}', 'OrdersController@evaluate');//订单评价
+    $api->post('orders/{order}/refund', 'OrdersController@refund');//订单申请退款
     $api->get('share/{order}', 'OrdersController@share');//分享赚
     $api->get('orders/logistics/{order}', 'OrdersController@logistics');//查看物流
     #支付

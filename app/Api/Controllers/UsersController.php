@@ -64,24 +64,67 @@ class UsersController extends Controller
     */
     public function earn()
     {
-        $data = Exchange::where(['user_id' => auth()->user()->id, 'status' => Exchange::AWARD_STATUS])->get();
+        $user = auth()->user();
+        $data = Exchange::where(['user_id' => auth()->user()->id, 'status' => Exchange::AWARD_STATUS])->orderBy('crated_at, desc')->get();
         $datas = [];
         foreach($data as $key => $item) {
             $data = $this->get_order_item($item->uri);
             $data->amount = $item->amount;
-            $data->time = $item->craeted_at;
+            $data->time = $item->created_at;
             $datas[] = $data;
         }
-        return response()->json(['data' => $datas]);
+
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $datas, 'user' => '']);
+    }
+
+    public function clearSpend($userID, $data)
+    {
+        $user = User::find($userID);
+
+        if ($data['type'] == 0) {
+          $start = Carbon::parse($data['date']->startOfDay());
+          $end = Carbon::parse($data['date']->endOfDay());
+        } else {
+          $start = Carbon::parse($data['date']->startOfMonth());
+          $end = Carbon::parse($data['date']->endOfMonth());
+        }
+        
+        $where[] = ['created_at', '>=', $start];
+        $where[] = ['created_at', '<=', $end];
+        $where[] = ['status', Exchange::CASH_STATUS];
+        $datas = Exchange::select('amount')->where($where)->get();
+        $total = $datas ? collect($datas)->sum('amount') : 0;
+        return $total;
     }
     /**
     * 我的粉丝
     */
     public function history()
     {
-        $productIds = \Redis::zrevrange('user.' . auth()->id() . '.history', 0, -1);
-        $products = Product::whereIn('id', $productIds)->select('title')->get();
-        return response()->json(['data' => $products]);
+        $arr = ['type' => 0, 'date' => Carbon::now()];
+        return $spend = $this->clearSpend(auth()->id(), $arr);
+        dd($spend);
+        $datas = \Redis::zrevrange('history.' . auth()->id() . '.chilren', 0, -1);
+        $logs = [];
+        $count = 0;
+
+        if ($datas) {
+          $logs = collect($datas)->map(function ($item, $index) {
+            $arr = explode('_', $item);
+            $user = User::find($arr[0]);
+            $data['name'] = $user->username ? $user->username : $user->nickname;
+            $data['avatar'] = $user->avatar;
+            $data['id'] = $arr[0];
+            $data['pro_id'] = $arr[1];
+            $data['pro_title'] = $arr[2];
+            $data['time'] = Carbon::createFromTimestamp($arr[3])->toDateTimeString();
+            return $data;
+          });
+          $ids = collect($logs)->pluck('id');
+          $count = collect($ids)->unique()->count();
+        }
+
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $count, 'logs' => $logs]);
     }
 
     /**

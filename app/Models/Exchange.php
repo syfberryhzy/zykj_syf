@@ -27,6 +27,8 @@ class Exchange extends Model implements Transformable
     const SPEND_MONTH = 8; //8=当月消费
     const VICTORY_DATE = 9; //9=当天业绩
     const VICTORY_MONTH = 10; //10=当月业绩
+    const EARN_DATE = 11;
+    const EARN_TOTAL = 12;
 
     const SPEND_STATUS = [7, 8];
     const VICTORY_STATUS = [9, 10];

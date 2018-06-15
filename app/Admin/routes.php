@@ -32,6 +32,8 @@ Route::group([
     $router->resource('member/withdraws', WithdrawController::class);
 
     $router->resource('manage/orders', OrderController::class);
+    $router->get('manage/orders/{order}', 'OrderController@show')->name('admin.orders.show');
+    $router->resource('manage/refunds', RefundsController::class);
     $router->resource('manage/evaluates', EvaluateController::class);
 
     $router->resource('accumulative/boards', BoardsController::class);

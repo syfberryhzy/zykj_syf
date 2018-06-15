@@ -117,13 +117,13 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
     public function withward($userID, $data)
     {
         $user = User::find($userID);
-        $res = $user->victory_current - $data;
+        $res = $user->balance - $data;
         if ($res < 0) {
             return false;
         }
         $add = Exchange::create([
           'user_id' => $user->id,
-          'total' => $user->victory_current, //现有业绩
+          'total' => $user->balance, //余额
           'amount' => $data,
           'current' => $res,
           'model' => 'withward',
@@ -134,7 +134,7 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
 
         if ($add) {
           #修改用户数据
-          $user->decrement('victory_current', $data);
+          $user->decrement('balance', $data);
         }
         return false;
     }
@@ -191,37 +191,64 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
 
         $result = Exchange::create([
           'user_id' => $parent_id,
-          'total' => $parent->victory_current,
+          'total' => $parent->earn_current,
           'amount' => $price,
-          'current' => $parent->victory_current + $price,
+          'current' => $parent->earn_current + $price,
           'model' => 'order_item',
-          'uri' => $item['id'],//order_item_id
+          'uri' => $item['id'],
           'status' => Exchange::AWARD_STATUS,
           'type' => Exchange::ADD_TYPE
         ]);
 
         if ($result) {
-          $parent->increment('victory_current', $price);
-          $parent->increment('victory_total', $price);
+          $parent->increment('earn_current', $price);
+          $parent->increment('earn_total', $price);
+          $parent->increment('balance', $price);
         }
       }
+    }
+
+    public function isMonthEnd()
+    {
+      return (Carbon::now()->toDateString == Carbon::now()->endOfMonth()->toDateString) ? true : false;
+    }
+
+    /**
+    * 结算消费
+    * $type 结算方式 0 =日， 1= 月, 2=年
+    * $data 日期 0 =日， 1= 月, 2=年
+    */
+    public function clearQuery($userID, $data, $where)
+    {
+        $user = User::find($userID);
+
+        if ($data['type'] == 0) {
+          $start = Carbon::parse($data['date']->startOfDay());
+          $end = Carbon::parse($data['date']->endOfDay());
+        } else {
+          $start = Carbon::parse($data['date']->startOfMonth());
+          $end = Carbon::parse($data['date']->endOfMonth());
+        }
+
+        $where[] = ['created_at', '>=', $start];
+        $where[] = ['created_at', '<=', $end];
+        $where[] = ['user_id', $userID];
+        $datas = Exchange::select('amount')->where($where)->get();
+        $total = $datas ? collect($datas)->sum('amount') : 0;
+        return $total;
     }
 
     /**
     * 当天的个人消费
     */
-    public function spend($userID) {
-
+    public function clearDate($userID)
+    {
       $user = User::find($userID);
+      #当天消费统计
       $where[] = ['user_id', $userID];
-
-      $where[] = ['created_at', '>=', Carbon::now()->startOfDay()];
-      $where[] = ['created_at', '<=', Carbon::now()->endOfDay()];
-      #是否已存在记录，存在 = 删除
-      $log = Exchange::where($where)->where('status', Exchange::SPEND_DATE)->delete();
       $where[] = ['status', Exchange::CASH_STATUS];
-      $datas = Exchange::select('amount')->where($where)->get();
-      $total = collect($datas)->sum('amount');
+      $arr = ['type' => 0, 'date' => Carbon::now()];
+      $total = $this->clearQuery($userID, $arr, $where);
       $result = Exchange::create([
         'user_id' => $userID,
         'total' => $total,
@@ -232,11 +259,59 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         'status' => Exchange::SPEND_DATE,
         'type' => Exchange::ADD_TYPE
       ]);
-
-      if ($result) {
-        $user->increment('spend_current', 0);//当晚清零
+      #当月消费统计
+      if($this->isMonthEnd()) {
+        $spend[] = ['status', Exchange::SPEND_DATE];
+        $arr = ['type' => 1, 'date' => Carbon::now()];
+        $total = $this->clearQuery($userID, $arr, $spend);
+        $result = Exchange::create([
+          'user_id' => $userID,
+          'total' => $total,
+          'amount' => $total,
+          'current' => 0,
+          'model' => 'spend_self',
+          'uri' => 0,
+          'status' => Exchange::SPEND_MONTH,
+          'type' => Exchange::ADD_TYPE
+        ]);
       }
+      #当天收入统计
+      $earn[] = ['status', Exchange::AWARD_STATUS];
+      $arr = ['type' => 0, 'date' => Carbon::now()];
+      $earn_total = $this->clearQuery($userID, $arr, $earn);
+      $result = Exchange::create([
+        'user_id' => $userID,
+        'total' => $earn_total,
+        'amount' => $earn_total,
+        'current' => 0,
+        'model' => 'earn_self',
+        'uri' => 0,
+        'status' => Exchange::EARN_DATE,
+        'type' => Exchange::ADD_TYPE
+      ]);
+      #当月收入统计
+      if($this->isMonthEnd()) {
+        $month[] = ['status', Exchange::AWARD_STATUS];
+        $arr = ['type' => 1, 'date' => Carbon::now()];
+        $earn_total = $this->clearQuery($userID, $arr, $month);
+        $result = Exchange::create([
+          'user_id' => $userID,
+          'total' => $earn_total,
+          'amount' => $earn_total,
+          'current' => 0,
+          'model' => 'earn_self',
+          'uri' => 0,
+          'status' => Exchange::EARN_MONTH,
+          'type' => Exchange::ADD_TYPE
+        ]);
+      }
+
+      // if ($result) {
+      //   $user->increment('spend_current', 0);//当晚清零
+      // }
+
     }
+
 
     /**
     * 当天的个人业绩
@@ -248,8 +323,8 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
       $where[] = ['created_at', '>=', Carbon::now()->startOfDay()];
       $where[] = ['created_at', '<=', Carbon::now()->endOfDay()];
 
-      #是否已存在记录，存在 = 删除
-      $log = Exchange::where($where)->where('status', Exchange::VICTORY_DATE)->delete();
+      // #是否已存在记录，存在 = 删除
+      // $log = Exchange::where($where)->where('status', Exchange::VICTORY_DATE)->delete();
 
       $where[] = ['status', Exchange::SPEND_DATE];
       $datas = Exchange::select('amount')->whereIn('user_id', $ids)->where($where)->get();
@@ -260,13 +335,29 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         'amount' => $total,
         'current' => 0,
         'model' => 'victory_self',
-        'uri' => '',
+        'uri' => 0,
         'status' => Exchange::VICTORY_DATE,
         'type' => Exchange::ADD_TYPE
       ]);
 
       if ($result) {
         $parent->increment('victory_current', 0);//当晚清零
+      }
+      #当月业绩统计
+      if($this->isMonthEnd()) {
+        $month[] = ['status', Exchange::VICTORY_DATE];
+        $arr = ['type' => 1, 'date' => Carbon::now()];
+        $total = $this->clearQuery($userID, $arr, $month);
+        $result = Exchange::create([
+          'user_id' => $userID,
+          'total' => $total,
+          'amount' => $total,
+          'current' => 0,
+          'model' => 'earn_self',
+          'uri' => 0,
+          'status' => Exchange::VICTORY_MONTH,
+          'type' => Exchange::ADD_TYPE
+        ]);
       }
     }
 

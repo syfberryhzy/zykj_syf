@@ -13,9 +13,8 @@ use Encore\Admin\Controllers\ModelForm;
 use Illuminate\Support\Facades\Request;
 use App\Admin\Extensions\Tools\OrderStatus;
 use Encore\Admin\Widgets\Table;
-use App\Http\Requests\Admin\HandleRefundRequest;
 
-class OrderController extends Controller
+class RefundsController extends Controller
 {
     use ModelForm;
 
@@ -28,7 +27,7 @@ class OrderController extends Controller
     {
         return Admin::content(function (Content $content) {
 
-            $content->header('订单管理');
+            $content->header('退款管理');
             $content->description('列表');
 
             $content->body($this->grid());
@@ -45,7 +44,7 @@ class OrderController extends Controller
     {
         return Admin::content(function (Content $content) use ($id) {
 
-            $content->header('订单管理');
+            $content->header('退款管理');
             $content->description('编辑');
 
             $content->body($this->form()->edit($id));
@@ -61,7 +60,7 @@ class OrderController extends Controller
     {
         return Admin::content(function (Content $content) {
 
-            $content->header('订单管理');
+            $content->header('退款管理');
             $content->description('添加');
 
             $content->body($this->form());
@@ -77,12 +76,12 @@ class OrderController extends Controller
     {
         return Admin::grid(Order::class, function (Grid $grid) {
 
-            if (in_array(Request::get('status'), ['0', '1', '2', '3', '4', '5'])) {
-                $grid->model()->where('status', Request::get('status'))->orderBy('created_at', 'desc');
-            } else {
-                $grid->model()->orderBy('created_at', 'desc');
-            }
-
+            // if (in_array(Request::get('status'), [ '1', '2', '3', '4', '5'])) {
+            //     $grid->model()->where('refund_status', Request::get('status'))->orderBy('created_at', 'desc');
+            // } else {
+            //     $grid->model()->orderBy('created_at', 'desc');
+            // }
+            $grid->model()->whereIn('refund_status', [ '1', '2', '3', '4'])->orderBy('created_at', 'desc');
             $grid->id('ID')->sortable();
             $grid->column('users.username','收货信息')->display(function($user){
                 return '下单人：'.$user
@@ -153,17 +152,15 @@ class OrderController extends Controller
             $grid->tools(function ($tools) {
                 $tools->append(new OrderStatus());
             });
-            $grid->actions(function ($actions) {
-              $actions->disableDelete();
-              $actions->disableEdit();
-              $actions->append('<a href="/admin/manage/orders/'.$actions->getKey().'"><i class="fa fa-eye"></i></a>');
-              // if ($actions->row->status == 0) {
-              //   // 添加操作
-              //   $actions->append('<a href="/admin/mamage/orders/'.$actions->getKey().'/show"><i class="fa fa-eye"></i></a>');
-              //   $actions->append(new ApplyTool($actions->getKey(), 2));
-              // }
-            });
 
+            $grid->actions(function ($actions){
+              if ($actions->row->status == 0) {
+                // 添加操作
+                $actions->append(new ButtonTool($actions->getKey(), 1, '同意', '/admin/manage/refunds'));
+              } else {
+                $actions->append(new ButtonTool($actions->getKey(), 0, '拒绝', '/admin/manage/refunds'));
+              }
+            });
         });
     }
 
@@ -183,65 +180,38 @@ class OrderController extends Controller
         });
     }
 
-    public function show(Order $order)
+    public function operate(Order $order, Request $request)
     {
-        return Admin::content(function (Content $content) use ($order) {
-            $content->header('查看订单');
-            // body 方法可以接受 Laravel 的视图作为参数
-            $content->body(view('admin.orders.show', ['order' => $order]));
-        });
-    }
 
-    public function handleRefund(Order $order, HandleRefundRequest $request)
-    {
-        // 判断订单状态是否正确
-        if ($order->refund_status !== Order::REFUND_STATUS_APPLIED) {
-            throw new InvalidRequestException('订单状态不正确');
+        if ($request->action) {
+          if ($request->action == 1) {
+            #是否过期
+            $end = Carbon::parse($coupon->end_at);
+            $now = Carbon::now();
+            if ($now->gt($end)) {
+              return response()->json(['message' => '该活动截止日期已过期!', 'status' => 0], 201);
+            }
+          }
+          $coupon->status = $request->action;
+
+          if ($coupon->save()) {
+            $banner = Banner::find(1);
+            if ($request->action == 1) {
+              $banner->url = env('APP_URL_COUPONS').'/'. $coupon->id;
+              $banner->status = 1;
+              $banner->save();
+              Coupon::where('id', '<>', $coupon->id)->update(['status' => 0]);
+            } else {
+              $banner->url = env('APP_URL_COUPONS').'/'. $coupon->id;
+              $banner->url = '';
+              $banner->status = 0;
+              $banner->save();
+            }
+
+            return response()->json(['message' => '操作成功！', 'status' => 1], 201);
+          }
+          return response()->json(['message' => '操作失败!', 'status' => 0], 201);
         }
-        // 是否同意退款
-        if ($request->agree) {
-            // 同意退款的逻辑这里先留空
-            $payment = \EasyWeChat::payment();
-
-            $result = $payment->refund->byOutTradeNumber($order->out_trade_no, $order->out_refund_no, 1, 1, [
-                'refund_desc' => $order->refund_reason,
-            ]);
-            $order->update([
-                'refund_status' => Order::REFUND_STATUS_PROCESSING,//退款中
-            ]);
-			return $result;
-        } else {
-            // 将拒绝退款理由放到订单的 extra 字段中
-            $extra = $order->extra ?: [];
-            $extra['refund_disagree_reason'] = $request->reason;
-            // 将订单的退款状态改为未退款
-            $order->update([
-                'refund_status' => Order::REFUND_STATUS_PENDING,
-                'extra'         => $extra,
-            ]);
-        }
-
-        return $order;
-    }
-
-    /**
-    * 发货
-    */
-    public function send(Order $order, Request $request)
-    {
-        // 判断订单状态是否正确
-        if ($order->status !== Order::ORDER_STATUS_PAYED) {
-            throw new InvalidRequestException('订单状态不正确');
-        }
-
-        if ($request->ship_no) {
-            // 将订单的状态改为待收货
-            $order->update([
-                'refund_status' => Order::ORDER_STATUS_SEND,
-                'freightbillno'         => $request->ship_no,
-            ]);
-        }
-
-        return $order;
+        return response()->json(['message' => '错误操作!', 'status' => 0], 201);
     }
 }

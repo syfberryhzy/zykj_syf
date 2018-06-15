@@ -5,7 +5,6 @@ namespace App\Api\Controllers;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Jobs\CancelOrder;
-use App\Jobs\TranslateSlug;
 use Carbon\Carbon;
 use App\Models\Order;
 use App\Models\ShoppingCart as Cart;
@@ -13,6 +12,7 @@ use App\Models\Address;
 use App\Models\Coupon;
 use App\Models\UserCoupon;
 use App\Models\Exchange;
+use App\Models\Product;
 use App\Models\ProductItem;
 use App\Requests\OrderRequest;
 use App\Events\OrderItemEvent;
@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use App\Repositories\CartRepositoryEloquent;
 use App\Repositories\ExchangeRepositoryEloquent;
+use App\Exceptions\InvalidRequestException;
 
 class WechatController extends Controller
 {
@@ -151,67 +152,112 @@ class WechatController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
+		$orders = unserialize(Redis::get($user->id));
+    	$cart = $orders['cart'];
+    	$type = $orders['type'];
+		$order = \DB::transaction(function () use ($user, $request, $orders) {
+    			//$orders = unserialize(Redis::get($user->id));
+    			$cart = $orders['cart'];
+    			$type = $orders['type'];
 
-        $orders = unserialize(Redis::get($user->id));
-        $cart = $orders['cart'];
-        $type = $orders['type'];
+    			$address = Address::find($request->address_id);
+    			if (!$address || $address->user_id != $user->id) {
+    				return response()->json(['status' => 'fail', 'code' => '401', 'message' => '收货地址有误']);
+    			}
 
-        $address = Address::find($request->address_id);
-        if (!$address || $address->user_id != $user->id) {
-          return response()->json(['status' => 'fail', 'code' => '401', 'message' => '收货地址有误']);
-        }
-        #确认订单时就把库存数量减掉
-        #是否使用优惠券
-        // isexist($request->coupons)
-        $preferentialtotal = 0;
-        if ($request->coupons) {
-           $data = UserCoupon::find($request->coupons)->coupons;
-           $preferentialtotal = $data ? $data->par_value : 0;
-        }
-        $out_trade_no =  date('YmdHis') . rand(1000, 9999);
-        $prepay_id = $type == 0 ? $this->getPrepayId($request, $out_trade_no) : '';
-        $order = Order::create([
-          'user_id' => $user->id,
-          'type' => $type, //付款方式 0=微信支付，1=M币支付
-          'consignee' => $address->consignee,
-          'phone' => $address->phone,
-          'address' => $address->areas .' '. $address->address,
-          'pay_id' => $prepay_id,//微信支付id
-          'tradetotal' => $orders['sum'],//订单总金额
-          'preferentialtotal' => $preferentialtotal,//订单优惠金额
-          'customerfreightfee' => '0.00',//邮费
-          'total' => $orders['sum']  - $preferentialtotal,//订单实际应付金额
-          'out_trade_no' => $out_trade_no,
-          'remark' => $request->remark,
-          'attach' => Redis::get('user_rank')//附加參數 string
-        ]);
+    			#是否使用优惠券
+    			$preferentialtotal = 0;
+    			if ($request->coupons) {
+    				$data = UserCoupon::find($request->coupons)->coupons;
+    				$preferentialtotal = $data ? $data->par_value : 0;
+    			}
+    			$out_trade_no =  date('YmdHis') . rand(1000, 9999);
+    			//微信支付凭证
 
-        if (!$order) {
-          return response()->json(['status' => 'fail', 'code' => '422', 'message' => '订单创建失败']);
-        }
-        #TODO 添加订单详情 orderItem
-        event(new OrderItemEvent($order, $cart, $request->byCart));
-        #TODO 删除购物车相关数据
-        if($request->byCart) {
-          $this->deleteCarts($user, $orderArr);
-        }
-        #优惠券已使用
-        $request->coupons && UserCoupon::where('id', $request->coupons)->update(['status' => 1]);
-        #待付款订单15分钟自动取消
-        CancelOrder::dispatch($order)->delay(Carbon::now()->addMinutes(1));
+    			$prepay_id = $type == 0 ? $this->getPrepayId($request, $out_trade_no) : '';
 
-        $data = [
-          'money' => $order->total,
-          'out_trade_no' => $order->out_trade_no,
-          'order_id' => $order->id,
-          'prepay_id' => $prepay_id,
-          'type' => $order->type
-        ];
+    			$order = Order::create([
+    				'user_id' => $user->id,
+    				'type' => $type, //付款方式 0=微信支付，1=M币支付
+    				'consignee' => $address->consignee,
+    				'phone' => $address->phone,
+    				'address' => $address->areas .' '. $address->address,
+    				'pay_id' => $prepay_id,//微信支付id
+    				'tradetotal' => $orders['sum'],//订单总金额
+    				'preferentialtotal' => $preferentialtotal,//订单优惠金额
+    				'customerfreightfee' => '0.00',//邮费
+    				'total' => $orders['sum']  - $preferentialtotal,//订单实际应付金额
+    				'out_trade_no' => $out_trade_no,
+    				'remark' => $request->remark,
+    				'attach' => Redis::get('user_rank')//附加參數 string
+    			]);
 
-        // return toXml(['return_code' => 'SUCCESS', 'return_msg' => 'OK', 'code' => '201', 'data' => $data]);
-        return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单创建成功', 'data' => $data]);
-    }
+    			if (!$order) {
+    				    return response()->json(['status' => 'fail', 'code' => '422', 'message' => '订单创建失败']);
+			    }
+			    #库存数量减掉
 
+    			foreach($cart as $key => $val) {
+    				$items = ProductItem::find($val['item_id']);
+
+    				if ($items->decreaseStock($val['qty']) <= 0) {
+    					return response()->json(['status' => 'fail', 'code' => '422', 'message' => '该商品库存不足']);
+    					throw new InvalidRequestException('该商品库存不足');
+					}
+					$pro = Product::where('id', $val['product_id'])->increment('sale_num', $val['qty']);
+    			}
+				#TODO 删除购物车相关数据
+				if($request->byCart) {
+					$this->deleteCarts($user, $orderArr);
+				}
+    			return $order;
+            //return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单创建成功', 'data' => $data]);
+        });
+		$data = [
+    		'money' => $order->total,
+    		'out_trade_no' => $order->out_trade_no,
+    		'order_id' => $order->id,
+    		'prepay_id' => $order->pay_id,
+    		'type' => $order->type
+    	];
+    		#TODO 添加订单详情 orderItem
+  			event(new OrderItemEvent($order, $cart, $request->byCart));
+
+  			#优惠券已使用
+  			$request->coupons && UserCoupon::where('id', $request->coupons)->update(['status' => 1]);
+  			#待付款订单15分钟自动取消
+  			//CancelOrder::dispatch($order)->delay(Carbon::now()->addMinutes(1));
+  			$this->dispatch(new CancelOrder($order, 60));//60s
+		    return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单创建成功', 'data' => $data]);
+  }
+
+  public function refund_service($guanlian)
+     {
+         $order = DB::table('user_order')->where('guanlian', $guanlian)->first();
+         require app_path().'\Helper\aop\AopClient.php';
+         require app_path().'\Helper\aop\request\AlipayTradeRefundRequest.php';
+         $aop = new \AopClient ();
+         $aop->gatewayUrl = 'https://openapi.alipay.com/gateway.do';
+         $aop->appId = '2017112000054766';
+         $aop->rsaPrivateKey = 'MIIEpQIBAAKCAQEA59xAliFlfkhDGt4+vtcaOlFAint5FIju65MNVIN7tYede/FuRvB1XJpPlmsarKjqfdJrbamB14KvasAbols+3DRACtn1R7OvCSeBGmag2lNwC30vrPoXpKLln8DvfcTYKabrBF/vWQ63FnN5YXlm4Sja/IeGfOqn50NpjIMYz5hxcgAB84wD7ODaVtzZgkvmihRU5N89Cf3thG5QHJsGummspKb5ytL4eyfxkLYFT+npv2+8bQhowLh0PRzxMP/hg09IqIjhMiCelfFrg7pe71uWQfArYWNQdAXnVaMbXVqBR9SoglhO/zcrVieGMPB5sQEpPugKTf9SrTNyq9Q7kQIDAQABAoIBAQDIT01xJpsTdYSb8sOMhjM/jLDQswmRBxg6Z0nN6OX4l5gj2xnlqZoLDbmSfyeFYU1stFxhWl81e87mz99P7bqp7W4isdipQIAIzZtI3r86v3j+RAHrVAkXEDCHStzc8DG8ElvZ5LPYYdElUU/dOU/7WBuQrdkvlF7IekH2xc+qkCkDSokMcwyCQTFLSeRTXkMGEzZEFhYM0NdKUeoiIIL2iekcepHfpsDwIqc1mNtZz5K8O9ZiFFWbvS5Q+BB9iptqXJWbgQBM7Oo+L1eFPyXArqyrSF12JqJCBQhwy+UOguzrGsebozV4toe1o8hM9oXrZLmcBiQaoM9If4slPvUNAoGBAPP21psovwRVOkNYSDKyaSWJVUP5zwJ6sSWm1NZlzUoeef2Qkgemplj6Bmo0pcd3eF2Ztvfu0RijQc+fTMNzritbXJaen7L7f5jxpD508bGNlHqult+y5VeNmvOM7bWoKhfooyBJQ5JGv7drzJmvHqYD9HMlJp2XsEqsSKGL63wPAoGBAPNMjDBtJJxZhdj2+rGFrnvzJjeHsaKGxLiDuvDwpMbKjGhydaGHAX/T4Be/Gdq7dh29KkaZH97iUuaVcBBqSW2ujl5//9V4odSjS4k6uGeSTx/6y3/kmrfBrygB7jgSKMS2zEaJuM57LtBUH4xmeq5THE5I42cccbO/3jCp8a5fAoGBAMf5lYAprioHEnMRclzcEYRLRjEqG52UpJCQZ/Y2DEitIqHOV2UeHUzh5VA5R4pxS6Ct12TzxUHE0LU3htzPffzcLtDnxVAZB0Z/DHqFsXgw7XyCj/ld0tApqtHouxEkfxyJ/O0CIPlONOhM3LE88opyw3V/BmA3brJG9mI1JxnRAoGBAN99XHWLfIrmrU3tKcHyY6JWa6+sxR7fn0tDLnDvDN3S54F2StnS8yyhywLlN3G2q7yLrI7nT+Bkk/ReJ2/cwpCvPPZPrAlC4505V0S6nPP+8RIWReK4cusDTst4YoQ9Ihf5NtJA5nM9snYKIGTPKjiB/clnqQRpm4SbZhXbtjcPAoGAR1BP7MIqu3OWapB/ql8kqOYoncPefaYirW0XK5x78LPJ5tpnlt7oSqsVcb9+hiArYHwN7/bonSCu4TIYwBXBk7j6tOxVI9JKVmQsJMIKoUSErwZG/FVbpW7So3DpSWfAfcqeCZjUXd4hOZJBTooAOc/OwuB9RcRVegdB8uQZ/Ug=';
+         $aop->alipayrsaPublicKey='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhKrvvWTTFTnPox3LHx683kw4C1z3rlyXmPZUTjZRSPn5cbE/SXxrRDWf6SJAxYEdoBrPpwEeyw7kB//Zw2ZOBCqdVPAuYHeQnlDYj/S7oqp3HbmGhyS139oHxxsqojp1tk/f5U7rVzEP6FJeM+vhEA+aoLR9uT7SsPxgsPWhV1y8Gx+teFlyaa4a3ISO9TWibFkGI/sbGLj2tSPo/Mvg2+xWM/0+DJsIx81u2BdwQLK1/9i5qoxwRB/SXYDjaU37yMiPj3Ee87B+0MIsotaTyxKY/BMuwZxTpVrwGhgbCRuGCQ/7Vhv2TAxYiyyMwjDcclLQQV+/C7EB+r64tjs+ewIDAQAB';
+         $aop->apiVersion = '1.0';
+         $aop->signType = 'RSA2';
+         $aop->postCharset='utf-8';
+         $aop->format='json';
+         $req = new \AlipayTradeRefundRequest ();
+         $list = array(
+             'out_trade_no' => $order->guanlian,
+             'refund_amount' => 0.01,
+         );
+         $data = json_encode($list);
+         $req->setBizContent($data);
+         $result = $aop->execute ( $req);
+
+         $responseNode = str_replace(".", "_", $req->getApiMethodName()) . "_response";
+         return $result->$responseNode->code;
+
+     }
     /**微信统一下单
      * @return [type]           [description]
      */
@@ -227,12 +273,35 @@ class WechatController extends Controller
             'trade_type' => 'JSAPI',
             'openid' => auth()->user()->weixin_openid,
         ]);
+
         if ($result['return_code'] == 'SUCCESS') {
+            dump($result);
             return $result['prepay_id'];
         } else {
             return response()->json(['status' => 'fail', 'code' => '422', 'message' => $result['return_msg']]);
         }
     }
+
+    public function refund(Order $order)
+    {
+      dd($order);
+      if($order->type == 1) {
+        return response()->json(['status' => 'fail', 'code' => '401', 'message' => '兑换商品不支持退款']);
+      }
+      if($order->status == 0) {
+        return response()->json(['status' => 'fail', 'code' => '401', 'message' => '未付款订单不支持退款']);
+      }
+      $payment = \EasyWeChat::payment();
+      // $payment->refund->byTransactionId(string $transactionId, string $refundNumber, int $totalFee, int $refundFee, array $config = []);
+
+      $out_refund_no =  date('YmdHis') . rand(1000, 9999);
+      $result = $payment->refund->byTransactionId($order->prepay_id, $out_refund_no, $order->paiedtotal, $order->paiedtotal, [
+          // 可在此处传入其他参数，详细参数见微信支付文档
+          'refund_desc' => '商品已售完',
+      ]);
+      return [$result, $out_refund_no];
+    }
+
 
     public function update(Request $request)
     {
