@@ -165,7 +165,6 @@ class OrdersController extends Controller
 
     public function refund(Order $order, Request $request)
     {
-      // dd($order);
       if($order->type == 1) {
         return response()->json(['status' => 'fail', 'code' => '401', 'message' => '兑换商品不可退款']);
       }
@@ -211,10 +210,14 @@ class OrdersController extends Controller
 
     public function logistics(Order $order)
     {
-        // $kd_type = $order->kd_type;
-        // $logistics = $order->logistics;
+
+        // if($order->status !== Order::ORDER_STATUS_RECEIPT) {
+        //   return response()->json(['status' => 'fail', 'code' => '422', 'message' => '订单状态不正确']);
+        // }
         $kd_type ='zhongtong';
         $logistics = '499061307957';
+        // $kd_type = $order->express_company;
+        // $logistics = $order->freightbillno;
         $url = "https://m.kuaidi100.com/query?type=".$kd_type."&postid=". $logistics."&id=1&valicode=&temp=0.4412782272241622";
         $msg = curl_init();
         curl_setopt($msg, CURLOPT_URL, $url);
@@ -223,6 +226,6 @@ class OrdersController extends Controller
         $data = curl_exec($msg);
         curl_close($msg);
         $data = json_decode($data,true);//将json格式转化为数组格式,方便使用
-        return $data;
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $data]);
     }
 }

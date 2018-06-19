@@ -60,6 +60,7 @@
 	  <tr>
         <td>订单状态：</td>
         <td>
+
 		{{ \App\Models\Order::$orderStatusMap[$order->status] }}
 
 			@if($order->status === \App\Models\Order::ORDER_STATUS_PAYED)
@@ -71,7 +72,43 @@
         <td>{{ $order->freightbillno }}</td>
       </tr>
       @endif
-
+	 @if($order->status === \App\Models\Order::ORDER_STATUS_PAYED)
+      <tr>
+        <td colspan="4">
+          <form id="form" action="{{ route('admin.orders.send', [$order->id]) }}" method="post" class="form-inline">
+            <!-- 别忘了 csrf token 字段 -->
+            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+            <div class="form-group {{ $errors->has('express_company') ? 'has-error' : '' }}">
+              <label for="express_company" class="control-label">物流公司</label>
+              <input type="text" id="express_company" name="express_company" value="" class="form-control" placeholder="输入物流公司">
+              @if($errors->has('express_company'))
+                @foreach($errors->get('express_company') as $msg)
+                  <span class="help-block">{{ $msg }}</span>
+                @endforeach
+              @endif
+            </div>
+            <div class="form-group {{ $errors->has('express_company') ? 'has-error' : '' }}">
+              <label for="express_no" class="control-label">物流单号</label>
+              <input type="text" id="freightbillno" name="freightbillno" value="" class="form-control" placeholder="输入物流单号">
+              @if($errors->has('freightbillno'))
+                @foreach($errors->get('freightbillno') as $msg)
+                  <span class="help-block">{{ $msg }}</span>
+                @endforeach
+              @endif
+            </div>
+            <button type="button" class="btn btn-success" id="btn-order-send">发货</button>
+          </form>
+        </td>
+      </tr>
+      @else
+      <!-- 否则展示物流公司和物流单号 -->
+      <tr>
+        <td>物流公司：</td>
+        <td>{{ $order->express_company }}</td>
+        <td>物流单号：</td>
+        <td>{{ $order->freightbillno }}</td>
+      </tr>
+      @endif
       </tbody>
     </table>
 
@@ -134,7 +171,19 @@ $(document).ready(function() {
   });
   // 同意 按钮的点击事件
   $('#btn-refund-agree').click(function() {
-    $.ajax({
+	  swal({
+      title: '确认要将款项退还给用户？',
+      type: 'warning',
+      showCancelButton: true,
+      closeOnConfirm: false,
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    }, function(ret){
+      // 用户点击取消，不做任何操作
+      if (!ret) {
+        return;
+      }
+	  $.ajax({
       url: '{{ route('admin.orders.handle_refund', [$order->id]) }}',
       type: 'POST',
       data: JSON.stringify({   // 将请求变成 JSON 字符串
@@ -163,11 +212,40 @@ $(document).ready(function() {
         });
 	  }
     });
+     });
   });
 
   // 发货 按钮的点击事件
 $('#btn-order-send').click(function() {
-// 注意：Laravel-Admin 的 swal 是 v1 版本，参数和 v2 版本的不太一样
+  var is_submit = '{{ $order->status !== \App\Models\Order::ORDER_STATUS_PAYED || $order->refund_status !== \App\Models\Order::REFUND_STATUS_PENDING}}';
+  if(is_submit) {
+      swal({
+          title:'订单状态不正确或退款正在处理中',
+          type:"warning",
+          showCancelButton:false,
+          closeOnConfirm:true,
+          closeOnCancel:true
+      });
+      return;
+  } else {
+      var freightbillno = $('#freightbillno').val();
+      var express_company = $('#express_company').val();
+      if(!express_company || !freightbillno) {
+        swal({
+            title:'物流公司或物流单号未填写',
+            type:"warning",
+            showCancelButton:false,
+            closeOnConfirm:true,
+            closeOnCancel:true
+        });
+        return;
+      } else {
+        $('#form').submit();
+      }
+
+  }
+
+
   swal({
     title: '输入物流单号',
     type: 'input',

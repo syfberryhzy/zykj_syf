@@ -88,14 +88,14 @@ class ShoppingCartsController extends Controller
   {
       $user = auth()->user();
       $this->checkCart($cart->items);
-		if($request->type == 'reduce') {
-			if($cart->qty == 1) {
-				 return response()->json(['status' => 'fail', 'code' => '401', 'message' => '~_~受不了了，不能再减啦']);
-			}
-			$cart->decrement('qty', 1);
-		} else {
-			$cart->increment('qty', 1);
-		}
+  		if($request->type == 'reduce') {
+  			if($cart->qty == 1) {
+  				 return response()->json(['status' => 'fail', 'code' => '401', 'message' => '~_~受不了了，不能再减啦']);
+  			}
+  			$cart->decrement('qty', 1);
+  		} else {
+  			$cart->increment('qty', 1);
+  		}
 
 
       if ($cart->save()) {

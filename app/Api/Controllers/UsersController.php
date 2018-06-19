@@ -65,7 +65,17 @@ class UsersController extends Controller
     public function earn()
     {
         $user = auth()->user();
-        $data = Exchange::where(['user_id' => auth()->user()->id, 'status' => Exchange::AWARD_STATUS])->orderBy('crated_at, desc')->get();
+        $user_data[] = $user->earn_total;//总收入
+        $user_data[] = $user->earn_current;//余额
+
+        $where[] = ['status', Exchange::AWARD_STATUS];
+        $arr = ['type' => 1, 'date' => Carbon::now()];
+
+        $user_data[] = number_format($this->exchanges->clearQuery($user->id, $arr, $where), 2);
+        $arr = ['type' => 0, 'date' => Carbon::now()];
+        $user_data[] = number_format($this->exchanges->clearQuery($user->id, $arr, $where), 2);
+
+        $data = Exchange::where(['user_id' => auth()->user()->id, 'status' => Exchange::AWARD_STATUS])->orderBy('created_at', 'desc')->get();
         $datas = [];
         foreach($data as $key => $item) {
             $data = $this->get_order_item($item->uri);
@@ -74,7 +84,7 @@ class UsersController extends Controller
             $datas[] = $data;
         }
 
-        return response()->json(['status' => 'success', 'code' => '201', 'data' => $datas, 'user' => '']);
+        return response()->json(['status' => 'success', 'code' => '201', 'logs' => $datas, 'data' => $user_data]);
     }
 
     public function clearSpend($userID, $data)
@@ -88,7 +98,7 @@ class UsersController extends Controller
           $start = Carbon::parse($data['date']->startOfMonth());
           $end = Carbon::parse($data['date']->endOfMonth());
         }
-        
+
         $where[] = ['created_at', '>=', $start];
         $where[] = ['created_at', '<=', $end];
         $where[] = ['status', Exchange::CASH_STATUS];
@@ -101,9 +111,6 @@ class UsersController extends Controller
     */
     public function history()
     {
-        $arr = ['type' => 0, 'date' => Carbon::now()];
-        return $spend = $this->clearSpend(auth()->id(), $arr);
-        dd($spend);
         $datas = \Redis::zrevrange('history.' . auth()->id() . '.chilren', 0, -1);
         $logs = [];
         $count = 0;
@@ -155,6 +162,57 @@ class UsersController extends Controller
         return response()->json(['data' => $data, 'status' => 'success', 'code' => '201']);
     }
 
+    //我的业绩
+    public function victory()
+    {
+        $user = auth()->user();
+        $months = [Carbon::now(), Carbon::now()->subMonth(1), Carbon::now()->subMonth(2)];
+        // #本月业绩
+        // $month[] = ['status', Exchange::VICTORY_DATE];
+        // $arr = ['type' => 1, 'date' => Carbon::now()];
+        // $data[$arr['date']->month] = number_format($this->exchanges->clearQuery($user->id, $arr, $month), 2);
+        //
+        // #上月业绩
+        // $month[] = ['status', Exchange::VICTORY_MONTH];
+        // $arr = ['type' => 1, 'date' => Carbon::now()->subMonth(1)];
+        // $data[$arr['date']->month] = number_format($this->exchanges->clearQuery($user->id, $arr, $month), 2);
+        //
+        // #上上月业绩
+        // $month[] = ['status', Exchange::VICTORY_MONTH];
+        // $arr = ['type' => 1, 'date' => Carbon::now()->subMonth(2)];
+        // $data[$arr['date']->month] = number_format($this->exchanges->clearQuery($user->id, $arr, $month), 2);
+
+        foreach($months as $key => $val) {
+          $arr = ['type' => 1, 'date' => $val];
+          $where_arr[] = $key == 0 ? ['status', Exchange::SPEND_DATE] : ['status', Exchange::SPEND_MONTH];
+          $data[$val->month][0] = number_format($this->exchanges->clearQuery($user->id, $arr, $where_arr), 2);
+
+          $where[] = $key == 0 ? ['status', Exchange::VICTORY_DATE] : ['status', Exchange::VICTORY_MONTH];
+          $data[$val->month][1] = number_format($this->exchanges->clearQuery($user->id, $arr, $where), 2);
+        }
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $data]);
+    }
+
+    /**
+    * 提现申请
+    */
+    public function withward(Request $request)
+    {
+        $user = auth()->user();
+        if (!$request->money || $request->money <= 0 || $request->money > $user->balance) {
+          return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请输入有效的提现金额']);
+        }
+        if ($this->exchanges->withward($user->id, $request->money)) {
+          return response()->json(['status' => 'success', 'code' => '201', 'message' => '提现申请已提交']);
+        }
+        return response()->json(['status' => 'fail', 'code' => '422', 'message' => '悟空，你又调皮']);
+    }
+
+    public function withwardLog()
+    {
+        $data = Exchange::where('user_id', auth()->user()->id)->whereIn('status', Exchange::WITHDRAW_STATUS)->orderBy('created_at', 'desc')->get();
+        return response()->json(['status' => 'success', 'code' => '201', 'data' => $data]);
+    }
     public function tree($ids)
     {
         $result = [];

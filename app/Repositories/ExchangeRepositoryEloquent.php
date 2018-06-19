@@ -210,7 +210,7 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
 
     public function isMonthEnd()
     {
-      return (Carbon::now()->toDateString == Carbon::now()->endOfMonth()->toDateString) ? true : false;
+      return (Carbon::now()->toDateString() == Carbon::now()->endOfMonth()->toDateString()) ? true : false;
     }
 
     /**
@@ -289,6 +289,8 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         'status' => Exchange::EARN_DATE,
         'type' => Exchange::ADD_TYPE
       ]);
+      $user->increment('earn_total', $earn_total);
+      $user->increment('balance', $earn_total);
       #当月收入统计
       if($this->isMonthEnd()) {
         $month[] = ['status', Exchange::AWARD_STATUS];

@@ -68,6 +68,7 @@ $api->version('v1', [//默认
     $api->get('/earn', 'UsersController@earn');//我的收入
     $api->get('/agent', 'UsersController@agent');//我的代理
     $api->get('/history', 'UsersController@history');//我的粉丝
+    $api->get('/victory', 'UsersController@victory');//我的业绩
     $api->get('/user/coupons', 'UsersController@coupons');//我的优惠券
 
     # 收货地址
@@ -76,7 +77,7 @@ $api->version('v1', [//默认
     # 购物车
     $api->get('carts', 'ShoppingCartsController@index');
     $api->post('carts/{item}', 'ShoppingCartsController@store');//
-    $api->put('carts/{item}', 'ShoppingCartsController@update');
+    $api->put('carts/{cart}', 'ShoppingCartsController@update');
     $api->delete('carts', 'ShoppingCartsController@destroy');
 
     #订单
@@ -98,7 +99,7 @@ $api->version('v1', [//默认
     $api->post('withward', 'AgentsController@withward');//提现申请
   });
 
-
+  //定时任务
   $api->get('tasks/users', 'TaskController@getUser');
 
   // $api->get('carts/index', 'CartsController@index');

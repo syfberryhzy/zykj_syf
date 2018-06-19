@@ -107,6 +107,9 @@ class CouponController extends Controller
             });
             $grid->disableExport();
             $grid->actions(function ($actions){
+              $start = Carbon::parse($actions->row->start_at);
+              $end = Carbon::parse($actions->row->end_at);
+              $now = Carbon::now();
               if ($actions->row->status == 0) {
                 // 添加操作
                 $actions->append(new ButtonTool($actions->getKey(), 1, '启动', '/admin/site/coupon'));
@@ -118,7 +121,6 @@ class CouponController extends Controller
                 $filter->disableIdFilter();
                 $filter->like('title', '活动标题');
             });
-
         });
     }
 

@@ -76,7 +76,7 @@ class BoardsController extends Controller
           $grid->model()->whereIn('status', Exchange::VICTORY_STATUS)->orderBy('created_at', 'desc');
           $grid->id('ID')->sortable();
           $grid->column('users.username', '用户');
-          $grid->total('业绩');
+          $grid->total('业绩')->sortable();
           // $grid->column('amount', '数目')->display(function () {
           //   return $this->type == 1 ? '<i style="color:#3c8dbc;">+</i> '. $this->amount : '<i style="color:#dd4b39;">-</i> ' . $this->amount;
           // });

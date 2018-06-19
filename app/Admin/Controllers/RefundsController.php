@@ -154,12 +154,12 @@ class RefundsController extends Controller
             });
 
             $grid->actions(function ($actions){
-              if ($actions->row->status == 0) {
-                // 添加操作
-                $actions->append(new ButtonTool($actions->getKey(), 1, '同意', '/admin/manage/refunds'));
-              } else {
-                $actions->append(new ButtonTool($actions->getKey(), 0, '拒绝', '/admin/manage/refunds'));
-              }
+              // if ($actions->row->status == 0) {
+              //   // 添加操作
+              //   $actions->append(new ButtonTool($actions->getKey(), 1, '同意', '/admin/manage/refunds'));
+              // } else {
+              //   $actions->append(new ButtonTool($actions->getKey(), 0, '拒绝', '/admin/manage/refunds'));
+              // }
             });
         });
     }
