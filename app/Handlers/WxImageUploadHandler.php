@@ -11,29 +11,26 @@ class WxImageUploadHandler
 
     public function save($file, $folder, $file_prefix)
     {
-        $folder_name = "uploads/$folder/" . date("Ym/d", time());
-        // $upload_path = public_path() . '/' . $folder_name;
-        if (!empty($file)) {
-            //获取扩展名
-            $fileName = $file['name'];
-            $pathinfo = pathinfo($fileName);
-            $extension = strtolower($pathinfo['extension']);
-            // 如果上传的不是图片将终止操作
-            if ( ! in_array($extension, $this->allowed_ext)) {
-                return false;
-            }
-            $data = $file['tmp_name'];
-            // // 值如：1_1493521050_7BVc9v9ujP.png
-            $file_name = $file_prefix . '_' . time() . '_' . str_random(10) . '.' . $extension;
-              // $file_name = date('Y_m_d_') . uniqid() . '.png';
+      $Path = "/uploads/$folder/";
+      if (!empty($_FILES['file'])) {
+          //获取扩展名
+          $pathinfo = pathinfo($file['name']);
+          $exename = strtolower($pathinfo['extension']);
 
-            // 将图片移动到我们的目标存储路径中
-            $result = Storage::disk($folder)->put($file_name, $data);
-            if($result) {
-              return $file_name;
-            }
-
-        }
-		 return false;
+          if (!in_array($exename, $this->allowed_ext)) {
+              return false;
+          }
+          $fileName = $_SERVER['DOCUMENT_ROOT'] . $Path . date('Ym');//文件路径
+          $upload_name = '/img_' . date("YmdHis") . rand(0, 100) . '.' . $exename;//文件名加后缀
+          if (!file_exists($fileName)) {
+              //进行文件创建
+              mkdir($fileName, 0777, true);
+          }
+          $imageSavePath = $fileName . $upload_name;
+          if (move_uploaded_file($file['tmp_name'], $imageSavePath)) {
+              return date('Ym') . $upload_name;
+          }
+          return false;
+      }
 	}
 }

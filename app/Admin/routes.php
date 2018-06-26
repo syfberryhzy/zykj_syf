@@ -39,6 +39,7 @@ Route::group([
     $router->post('manage/orders/send/{order}', 'OrderController@send')->name('admin.orders.send');
     $router->resource('manage/refunds', RefundsController::class);
     $router->resource('manage/evaluates', EvaluateController::class);
+    $router->resource('manage/recommend', RecommendController::class);
 
     $router->resource('accumulative/boards', BoardsController::class);
     // $router->resource('mall/products', ProductController::class);

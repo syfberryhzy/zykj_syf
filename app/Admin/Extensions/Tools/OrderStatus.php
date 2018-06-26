@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\Request;
 
 class OrderStatus extends AbstractTool
 {
+    public $datas;
+    public function __construct($data)
+    {
+      $this->datas = $data;
+    }
     protected function script()
     {
         $url = Request::fullUrlWithQuery(['status' => '_gender_']);
@@ -30,13 +35,13 @@ EOT;
         Admin::script($this->script());
 
         $options = [
-            'all'   => '全部订单',
-            '0'     => '待支付',
-            '1'     => '已取消',
-            '2'     => '待发货',
-            '3'     => '待收货',
-            '4'     => '已收货',
-            '5'     => '已完成'
+            'all'   => '全部订单('.$this->datas['all'].')',
+            '0'     => '待支付('.$this->datas['0'].')',
+            '2'     => '待发货('.$this->datas['2'].')',
+            '3'     => '待收货('.$this->datas['3'].')('.$this->datas['all'].')',
+            '4'     => '已完成('.$this->datas['4'].')',
+            '6'     => '退款中('.$this->datas['6'].')',
+            '1'     => '已关闭('.$this->datas['1'].')',
         ];
 
         return view('admin.tools.order', compact('options'));

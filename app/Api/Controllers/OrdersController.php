@@ -62,6 +62,8 @@ class OrdersController extends Controller
     public function show(Order $order)
     {
         $order->username = $order->users->username;
+        $order->user_avatar = $order->users->avatar;
+        $order->user_buy_time = $order->created_at->diffForHumans();
          collect($order->items)->map(function ($value, $index) {
             $value->image = env('APP_URL_UPLOADS'). '/' . $value->product->images[0];
             // collect($value)->except(['product']);
@@ -100,7 +102,6 @@ class OrdersController extends Controller
           $parent->increment('victory_current', $price);
           $parent->increment('victory_total', $price);
         }
-        dump($result);
       }
     }
 
@@ -148,7 +149,9 @@ class OrdersController extends Controller
               'order_item_id' => $value['item_id'],
               'product_id' => $value['product_id'],
               'content' => $value['content'],
-              'images' => $images
+              'images' => $images,
+              'created_at' => date('Y-m-d H:i:s', time()),
+              'updated_at' => date('Y-m-d H:i:s', time()),
               // 'images' => $value['images'] ? json_encode($value['images'], JSON_UNESCAPED_UNICODE) : ''
           ];
       }
@@ -200,13 +203,14 @@ class OrdersController extends Controller
     public function uploads(WxImageUploadHandler $uploads)
     {
         $user = auth()->user();
-        $result = $uploads->save($_FILES['wxfile'], 'evaluate', $user->id);
+        $result = $uploads->save($_FILES['file'], 'evaluate', $user->id);
         return response()->json($result);
         // if ($result) {
         //   return response()->json(['status' => 'success', 'code' => '201', 'message' => '操作成功', 'data' => [env('APP_URL_UPLOADS').'/evaluate/'.$result, $result]]);
         // }
         // return response()->json(['status' => 'fail', 'code' => '422', 'message' => '操作失败']);
     }
+
 
     public function logistics(Order $order)
     {

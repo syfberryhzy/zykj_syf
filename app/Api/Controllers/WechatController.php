@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Redis;
 use App\Repositories\CartRepositoryEloquent;
 use App\Repositories\ExchangeRepositoryEloquent;
 use App\Exceptions\InvalidRequestException;
-
+use App\Exceptions\ApiException;
 class WechatController extends Controller
 {
     public $carts;
@@ -78,6 +78,7 @@ class WechatController extends Controller
     public function deleteCarts($orderArr)
     {
       $res = Cart::where('user_id', auth()->user()->id)->whereIn('id', $orderArr)->delete();
+
       return $res;
     }
 
@@ -122,7 +123,8 @@ class WechatController extends Controller
           'cart'  => collect($cart)->toArray(),
           'sum'  => collect($cart)->sum('total'),
           'num'  => collect($cart)->sum('qty'),
-          'type' => $type
+          'type' => $type,
+		  'byCart' => $request->byCart,
         ];
 
         #优惠券
@@ -152,18 +154,18 @@ class WechatController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
-		$orders = unserialize(Redis::get($user->id));
-    	$cart = $orders['cart'];
-    	$type = $orders['type'];
-		$order = \DB::transaction(function () use ($user, $request, $orders) {
+		    $orders = unserialize(Redis::get($user->id));
+    	  $cart = $orders['cart'];
+    	  $type = $orders['type'];
+		    $order = \DB::transaction(function () use ($user, $request, $orders) {
     			//$orders = unserialize(Redis::get($user->id));
     			$cart = $orders['cart'];
     			$type = $orders['type'];
-
+				  $byCart = $orders['byCart'];
     			$address = Address::find($request->address_id);
     			if (!$address || $address->user_id != $user->id) {
-    				return response()->json(['status' => 'fail', 'code' => '401', 'message' => '收货地址有误']);
-    			}
+					     abort(403, '收货地址有误' );
+			    }
 
     			#是否使用优惠券
     			$preferentialtotal = 0;
@@ -193,26 +195,28 @@ class WechatController extends Controller
     			]);
 
     			if (!$order) {
-    				    return response()->json(['status' => 'fail', 'code' => '422', 'message' => '订单创建失败']);
+				       abort(403, '订单创建失败' );
 			    }
 			    #库存数量减掉
-
+				  $ids = [];
     			foreach($cart as $key => $val) {
+					  if($byCart) {
+              $ids[] = $val['id'];
+            }
     				$items = ProductItem::find($val['item_id']);
-
     				if ($items->decreaseStock($val['qty']) <= 0) {
-    					return response()->json(['status' => 'fail', 'code' => '422', 'message' => '该商品库存不足']);
-    					throw new InvalidRequestException('该商品库存不足');
-					}
-					$pro = Product::where('id', $val['product_id'])->increment('sale_num', $val['qty']);
+    					abort(403, '商品库存不足' );
+				    }
+					  $pro = Product::where('id', $val['product_id'])->increment('sale_num', $val['qty']);
     			}
-				#TODO 删除购物车相关数据
-				if($request->byCart) {
-					$this->deleteCarts($user, $orderArr);
-				}
+				  #TODO 删除购物车相关数据
+  				if($byCart && $ids) {
+  					$this->deleteCarts($ids);
+  				}
     			return $order;
             //return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单创建成功', 'data' => $data]);
         });
+
 		$data = [
     		'money' => $order->total,
     		'out_trade_no' => $order->out_trade_no,
@@ -275,7 +279,6 @@ class WechatController extends Controller
         ]);
 
         if ($result['return_code'] == 'SUCCESS') {
-            dump($result);
             return $result['prepay_id'];
         } else {
             return response()->json(['status' => 'fail', 'code' => '422', 'message' => $result['return_msg']]);
@@ -284,7 +287,6 @@ class WechatController extends Controller
 
     public function refund(Order $order)
     {
-      dd($order);
       if($order->type == 1) {
         return response()->json(['status' => 'fail', 'code' => '401', 'message' => '兑换商品不支持退款']);
       }
@@ -305,12 +307,25 @@ class WechatController extends Controller
 
     public function update(Request $request)
     {
-        // dump($request->all());
-        // if(!$request->out_trade_no || !$request->prepay_id) {
-        //   return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请求错误']);
-        // }
-        $where[] = $request->out_trade_no ?  ['out_trade_no', '=', $request->out_trade_no] : ['prepay_id', '=', $request->prepay_id];
-        $order =   $order = Order::where($where)->firstOrFail();
+
+        if($request->out_trade_no) {
+          $out_trade_no = $request->out_trade_no;
+        } else {
+			$xmldata = file_get_contents("php://input");
+			$xmlstring = simplexml_load_string($xmldata, 'SimpleXMLElement', LIBXML_NOCDATA);
+			$data = json_decode(json_encode($xmlstring), true);
+			$out_trade_no = $data['out_trade_no'];
+		}
+		if (!$out_trade_no) {
+			return response()->json(['status' => 'fail', 'code' => '401', 'message' => '请求错误']);
+		}
+        $where[] = ['out_trade_no', '=', $out_trade_no];
+
+        $order = $order = Order::where($where)->firstOrFail();
+
+		if($order->status != 0) {
+			return response()->json(['status' => 'success', 'code' => '401', 'message' => '请勿重复支付']);
+		}
         $user_rank = $order->attach;
         Redis::set('user_rank', $user_rank);
 
@@ -331,18 +346,21 @@ class WechatController extends Controller
     {
         $userID = $order->user_id;
         #现金付款
+
         $result = $this->exchanges->wx_pay($userID, $order);
         if ($result) {
           #订单--已付
           $order->status = 2; //已付
           $order->paiedtotal = $order->total;
           $order->save();
+
           #代理--M币增加
           $this->exchanges->m_add($userID, $order);
           #是否有上级推荐购买：
           $add = $this->exchanges->get_share($userID, $order->id);
           return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单支付成功']);
         }
+
         return response()->json(['status' => 'fail', 'code' => '422', 'message' => '订单支付失败']);
     }
     /**
@@ -361,6 +379,7 @@ class WechatController extends Controller
         if ($result) {
           #订单--已付
           $order->status = 2; //已付
+		  $order->paiedtotal = $order->total;
           $order->save();
           return response()->json(['status' => 'success', 'code' => '201', 'message' => '订单支付成功']);
         }

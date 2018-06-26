@@ -24,28 +24,34 @@ class TaskController extends Controller
     //定时任务
     #下架秒杀商品
 
-    #12点
+    #12点后执行
     #优惠券到期 #banner= 1隐藏
-    public function coupon_expired()
+    public function activeCoupon()
     {
-      $where = [
-        ['status', 1],
-        ['end_at', '<=', Carbon::now()]
-      ];
-      #优惠券活动过期
-      $ids = Coupon::where($where)->select('id')->get();
-      Coupon::where($where)->update(['status' => 0]);
-      #未使用的过期优惠券
-      UserCoupon::whereIn('coupon_id', $ids)->where('status', 0)->update(['status' => 2]);
-      #优惠券banner隐藏
+      #是否有开始的优惠活动
       $banner = Banner::find(1);
-      $url = explode('/', $banner->url);
-      $id = end($url);
-      if (in_array($id, $ids)) {
-        $banner->url = '';
-        $banner->status = 0;
-        $banner->save();
+      $active = Coupon::where('active', 1)->first();
+      if($active && $active['end_at'] <= Carbon::now()) {
+        dump($active->id);
+          #到期操作：
+          $active->update(['active' => 0]);
+          $banner->update(['url' => '', 'status' => 0]);
+          #未使用的过期优惠券
+          UserCoupon::where('coupon_id', $active->id)->where('status', 0)->update(['status' => 2]);
+      } elseif(!$active) {
+        $where = [
+          ['status', 1],
+          ['start_at', '<=', Carbon::now()],
+          ['end_at', '>', Carbon::now()]
+        ];
+        #查找优惠活动 最新排序
+        $onlyOne = Coupon::where($where)->select('id')->orderBy('id', 'desc')->first();
+        $onlyOne->update(['active' => 1]);
+        $url = env('APP_URL_COUPONS').'/'. $onlyOne->id;
+        $banner->update(['url' => $url, 'status' => 1]);
+        dump($onlyOne->id);
       }
+      return '执行完毕';
     }
     public function getUser()
     {
@@ -56,13 +62,17 @@ class TaskController extends Controller
     public function task()
     {
       #11:55分开始执行
-      \Log::info('定时任务开始:'. Carbon::now());
       $users = $this->getUser();
       if($users) {
         foreach($users as $item) {
+
           $this->exchanges->clearDate($item);
         }
-        \Log::info('定时任务结束:'. Carbon::now());
+      }
+	    if($users) {
+        foreach($users as $item) {
+          $this->exchanges->victory($item);
+        }
       }
     }
     /**
@@ -156,6 +166,7 @@ class TaskController extends Controller
       $users = $this->getUser();
       //个人消费统计
       foreach($users as $item) {
+
         $this->all_spend($item);
       }
       //团队业绩统计

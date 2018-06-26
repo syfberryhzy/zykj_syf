@@ -390,4 +390,24 @@ class ExchangeRepositoryEloquent extends BaseRepository implements ExchangeRepos
         }
         return array_unique($datas);
     }
+
+    public function tree($ids)
+    {
+        $result = [];
+        if ($ids = json_decode($ids)) {
+          $data = Recommend::whereIn('user_id', $ids)->get();
+          if($data) {
+            $result = collect($data)->map(function ($item, $key) {
+              return [
+                'id' => $item->id,
+                'user_id' => $item->user_id,
+                'user_avatar' => $item->user->avatar,
+                'user_name' => $item->user->username,
+                'recommend' => $item->recommend
+              ];
+            });
+          }
+        }
+        return $result;
+    }
 }

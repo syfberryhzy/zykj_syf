@@ -72,16 +72,20 @@ class UserController extends Controller
     protected function grid()
     {
         return Admin::grid(User::class, function (Grid $grid) {
-            $grid->model()->orderBy('created_at', 'desc');
+            $grid->model()->orderBy('id', 'desc');
             $grid->id('ID')->sortable();
-            $grid->name('用户名');
+            $grid->username('用户名');
             $grid->avatar('头像')->image('', '100', '100');
             $grid->phone('联系方式');
             $grid->column('用户信息')->display(function(){
-                return '总计消费:'. $this->spend_total.'</br>'
-                  .'当月消费:'. $this->spend_current.'</br>'
-                  .'当前积分:'. $this->integral_current.'</br>'
-                  .'当前M币:'. $this->m_current;
+              return "<table class='table' style='width:300px;'>"
+              ."<tr><th>总计消费</th><td>". $this->spend_total ."</td></tr>"
+              ."<tr><th>当月消费</th><td>". $this->spend_current ."</td></tr>"
+              ."<tr><th>总计收入</th><td>". $this->earn_total ."</td></tr>"
+              ."<tr><th>当前余额</th><td>". $this->balance ."</td></tr>"
+              ."<tr><th>当前M币</th><td>". $this->m_current ."</td></tr>"
+              ."</table>";
+            
             });
             $grid->status('用户身份')->display(function ($str) {
               return $str == 1 ? '<i class="fa fa-vimeo">会员</i>' : '<i class="fa fa-user-plus">游客</i>';
@@ -89,9 +93,9 @@ class UserController extends Controller
             $grid->created_at('添加时间');
             $grid->updated_at('编辑时间');
 
-            // $grid->disableCreateButton();
+            $grid->disableCreateButton();
             $grid->disableExport();
-            // $grid->disableActions();
+            $grid->disableActions();
 
             $grid->filter(function($filter) {
                 $filter->disableIdFilter();

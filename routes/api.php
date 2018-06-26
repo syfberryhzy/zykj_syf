@@ -32,9 +32,6 @@ $api->version('v1', [//默认
         // 'expires' => config('api.rate_limits.sign.expires'),
   // ]);
 
-
-
-
   $api->get('shop/banners', 'IndexController@index');
   $api->get('shop/categories', 'IndexController@categoryList');
   $api->get('shop/news', 'IndexController@newsList');
@@ -45,7 +42,7 @@ $api->version('v1', [//默认
 
   // $api->get('products/{product}', 'ProductsController@show');
   $api->get('evaluates/{product}', 'ProductsController@evaluate');//商品评价列表
-  $api->any('/wechat/payment/notify', 'WechatController@update');//支付回调
+  $api->any('/payments/wechat/notify', 'WechatController@update');//支付回调
   // 小程序登录
   $api->post('weapp/authorizations', 'AuthorizationsController@weappStore')
       ->name('api.weapp.authorizations.store');
@@ -100,7 +97,8 @@ $api->version('v1', [//默认
   });
 
   //定时任务
-  $api->get('tasks/users', 'TaskController@getUser');
+  $api->get('tasks/task', 'TaskController@task');
+  $api->get('tasks/active', 'TaskController@active');
 
   // $api->get('carts/index', 'CartsController@index');
 });

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Evaluate;
 use App\Transformers\ProductTransformer;
+use Carbon\Carbon;
 
 class ProductsController extends Controller
 {
@@ -29,12 +30,29 @@ class ProductsController extends Controller
     /*
     * 商品评价列表--分页
     */
-    public function evaluate(Product $product)
+    public function evaluate(Product $product, Request $request)
     {
-        $datas = Evaluate::where('product_id', $product->id)->where('status', 1)->paginate(10);
-        // foreach($datas as $key => $item) {
-        //     $item->
-        // }
-        return $this->response->array($datas);
+        $datas = Evaluate::where('product_id', $product->id)->where('status', 1)->orderBy('id', 'desc')->get();
+        $total = count($datas);
+    		$page = (int)$request->page ?? 1;
+        $totalPage = (int)ceil($total / 10);
+        $page > $totalPage && $page = $totalPage;
+        $data = collect($datas)->forPage($page, 10);
+      	$logs = [];
+        foreach($data as $key => $item) {
+      			$images = $item->images ? collect(json_decode($item->images))->map( function ($val, $index) {
+				        return env('APP_URL_UPLOADS').'/evaluate/'. $val;
+            }) : '';
+
+            $logs[$key]['user_name'] = $item->users->username ?? $item->users->nickname;
+            $logs[$key]['avatar'] = $item->users->avatar;
+
+            $logs[$key]['pro_size'] = $item->orderItems->norm;
+      			$logs[$key]['content'] = $item->content;
+      			$logs[$key]['images'] = $images;
+      			$logs[$key]['time'] = Carbon::parse($item->created_at)->toDateTimeString();
+        }
+
+       return response()->json(['status' => 'success', 'code' => '201', 'data' => $logs, 'toal' => $total, 'totalPage' => $totalPage]);
     }
 }

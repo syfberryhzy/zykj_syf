@@ -15,6 +15,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Blade::withoutDoubleEncoding();
+        \Carbon\Carbon::setLocale('zh');
     }
 
     /**
